@@ -37,7 +37,10 @@ async def ejecutar_post_commit(session: AsyncSession) -> None:
 
 
 async def get_session() -> AsyncIterator[AsyncSession]:
-    """Una transacción por request: commit al final, rollback ante cualquier error."""
+    """Una transacción por request: commit al final, rollback ante cualquier error.
+
+    Las acciones post-commit (mails con secretos) corren después y su log de integración se confirma
+    en una segunda transacción."""
     async with get_sessionmaker()() as session:
         try:
             yield session
@@ -46,3 +49,4 @@ async def get_session() -> AsyncIterator[AsyncSession]:
             await session.rollback()
             raise
         await ejecutar_post_commit(session)
+        await session.commit()
