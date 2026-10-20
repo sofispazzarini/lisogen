@@ -4,7 +4,7 @@ Sistema de gestión de Estudios de exoma clínico para cinco Patologías lisosom
 
 **Stack:** PostgreSQL 16 · FastAPI · Vue 3
 
-> 🚧 En construcción. Etapa actual: **1 · Infra y migración**.
+> 🚧 En construcción. Etapa actual: **2 · Auth y roles**.
 
 ## Levantarlo
 
@@ -28,7 +28,7 @@ make test    # tests del backend contra el Postgres de compose
 
 ### Usuarios demo
 
-Contraseña de todos: `Demo-2026!`
+Contraseña de todos: `Demo-2026!`. La primera vez que ingresás desde un navegador o equipo nuevo, LisoGen manda un código de verificación por mail: lo ves en Mailpit (http://localhost:8025).
 
 | Rol | Mail |
 |---|---|
