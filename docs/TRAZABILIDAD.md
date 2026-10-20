@@ -5,11 +5,11 @@ Fuente: `docs/Escenarios.pdf` (E1–E33). Cada endpoint y cada vista se trazan a
 | Esc. | Título | Rol | Servicio (`services/`) | Endpoint | Vista (`views/<rol>/`) |
 |---|---|---|---|---|---|
 | E1 | Registrar Médico Tratante | Médico | `registro.registrar_profesional(rol=MEDICO)` | `POST /auth/registro` | `auth/RegistroProfesional` |
-| E2 | Dar de alta Paciente | Médico | `pacientes.dar_de_alta_paciente` (+`domain.validar_diagnostico`, mail credenciales) | `POST /medico/pacientes`, `GET /medico/snomed?q=` | `medico/AltaPaciente` |
-| E3 | Cargar Familiograma | Médico | `pacientes.cargar_familiograma` (API familiograma → PDF MinIO) | `POST /medico/pacientes/{id}/familiograma` | `medico/AltaPaciente` (sección) |
-| E4 | Dar de alta Estudio | Médico | `estudios.dar_de_alta_estudio` (API bioinf. genes, manuales, hallazgos secundarios, Urgente) | `GET /medico/patologias/{id}/genes`, `POST /medico/estudios` | `medico/AltaEstudio` |
-| E5 | Asignar Cupón a Paciente | Médico | `cupones.asignar_a_paciente` | `GET /medico/cupones`, `POST /medico/cupones/{id}/asignar` | `medico/MisCupones` |
-| E6 | Solicitar Reanálisis | Médico | `estudios.solicitar_reanalisis` | `GET /medico/pacientes/{id}` (ficha+historial), `POST /medico/estudios/{id}/reanalisis` | `medico/FichaPaciente` |
+| E2 | Dar de alta Paciente | Médico | `pacientes.dar_de_alta_paciente` (+`domain.reglas.validar_diagnostico`, mail de credenciales) | `POST /medico/pacientes`, `GET /medico/snomed?q=`, `GET /medico/patologias`, `GET /medico/obras-sociales`, `POST /medico/pacientes/buscar` | `medico/AltaPaciente` |
+| E3 | Cargar Familiograma | Médico | `pacientes.cargar_familiograma` (API familiograma → PDF en MinIO) | `POST /medico/pacientes` (campo `familiares`), `POST /medico/pacientes/{id}/familiograma` | `medico/AltaPaciente` (sección) |
+| E4 | Dar de alta Estudio | Médico | `estudios.dar_de_alta_estudio` (API bioinformática, genes manuales, hallazgos secundarios, Urgente) | `GET /medico/patologias/{id}/genes`, `POST /medico/estudios`, `GET /medico/estudios`, `GET /medico/estudios/{id}` | `medico/AltaEstudio` |
+| E5 | Asignar Cupón a Paciente | Médico | `cupones.del_medico`, `cupones.asignar_a_paciente` | `GET /medico/cupones`, `POST /medico/cupones/{id}/asignar` | `medico/MisCupones` |
+| E6 | Solicitar Reanálisis | Médico | `pacientes.ficha` (+auditoría), `estudios.solicitar_reanalisis` | `GET /medico/pacientes/{id}`, `POST /medico/estudios/{id}/reanalisis` | `medico/FichaPaciente` |
 | E7 | Ingresar por primera vez | Paciente | `auth.login`, `auth.cambiar_password`, `auth.verificar_dispositivo` | `POST /auth/login`, `/auth/cambiar-password`, `/auth/verificar`, `/auth/refresh` | `auth/Login`, `auth/CambioPassword`, `auth/Verificacion` |
 | E8 | Pagar Presupuesto | Paciente | `pagos.pagar_presupuesto` (simulado, movimiento financiero) | `GET /paciente/estudios/{id}/presupuesto`, `POST …/pagar` | `paciente/Pagar` |
 | E9 | Aplicar Cupón | Paciente | `cupones.aplicar_cupon` (módulo cupones valida/marca USADO) | `POST /paciente/estudios/{id}/cupon` (código o PDF QR) | `paciente/Pagar` |
@@ -34,12 +34,12 @@ Fuente: `docs/Escenarios.pdf` (E1–E33). Cada endpoint y cada vista se trazan a
 | E27 | Tomar Estudio | Bioinformático | `analisis.tomar_estudio` (lock optimista `version` → 409) | `GET /bioinformatico/pendientes`, `POST /bioinformatico/estudios/{id}/tomar` | `bioinformatico/Pendientes` |
 | E28 | Cargar Variantes | Bioinformático | `analisis.cargar_variantes`, `analisis.confirmar_resultado` (+`domain.resultado`, PDF, notifica) | `GET /bioinformatico/genes/{gen}/variantes`, `POST /bioinformatico/estudios/{id}/variantes`, `POST …/resultado` | `bioinformatico/CargarVariantes` |
 | E29 | Registrar Gerente Médico | Gerente | `registro.registrar_profesional(rol=GERENTE)` | `POST /auth/registro` | `auth/RegistroProfesional` |
-| E30 | Dar de alta Patología | Gerente | `patologias.dar_de_alta` | `POST /gerente/patologias` | `gerente/Patologias` |
+| E30 | Dar de alta Patología | Gerente | `patologias.dar_de_alta` | `GET /gerente/snomed?q=`, `GET /gerente/patologias`, `POST /gerente/patologias` | `gerente/Patologias` |
 | E31 | Modificar Patología | Gerente | `patologias.modificar` | `PUT /gerente/patologias/{id}` | `gerente/Patologias` |
-| E32 | Generar Cupón | Gerente | `cupones.generar` (módulo cupones; sin QR → código numérico) | `POST /gerente/cupones` | `gerente/Cupones` |
+| E32 | Generar Cupón | Gerente | `cupones.generar` (módulo cupones; sin QR → código numérico) | `POST /gerente/cupones`, `GET /gerente/cupones` | `gerente/Cupones` |
 | E33 | Asignar Cupón a Médico | Gerente | `cupones.asignar_a_medico` | `POST /gerente/cupones/asignar`, `GET /gerente/medicos` | `gerente/Cupones` |
 
-Transversales: `GET /{rol}/avisos` + `POST /avisos/{id}/leido` (bandeja de Avisos en cada layout); `GET /{rol}/estudios` (tabla con badge Estado/Urgente).
+Transversales: `GET /avisos`, `POST /avisos/{id}/leido`, `POST /avisos/leidos` (bandeja de Avisos en cada layout, cualquier rol); `GET /{rol}/estudios` (tabla con badge de Estado y Urgente).
 
 Jobs: `jobs/orden_del_dia.py` (06:00 L–V no feriado, E23) · `jobs/recordatorios.py` (día anterior, E11) · `jobs/cierre_jornada.py` (RESERVADO vencido → AUSENTE, +inasistencia; 5 → POR_PAGAR + PERDIDA_POR_INASISTENCIAS, E11).
 

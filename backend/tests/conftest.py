@@ -122,11 +122,17 @@ async def cliente(session: AsyncSession, adaptadores: Adaptadores) -> AsyncItera
 
     async def _session() -> AsyncIterator[AsyncSession]:
         await session.commit()  # fija los datos que preparó el test antes del request
+        # Cada request corre en su SAVEPOINT: si falla, se revierte sólo lo suyo y los objetos que
+        # preparó el test no quedan expirados (un rollback completo los expiraría).
+        request_tx = await session.begin_nested()
         try:
             yield session
             await session.commit()
         except BaseException:
-            await session.rollback()
+            if request_tx.is_active:
+                await request_tx.rollback()
+            else:
+                await session.rollback()
             raise
         await ejecutar_post_commit(session)
         await session.commit()
