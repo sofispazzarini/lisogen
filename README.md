@@ -4,7 +4,7 @@ Sistema de gestión de Estudios de exoma clínico para cinco Patologías lisosom
 
 **Stack:** PostgreSQL 16 · FastAPI · Vue 3
 
-> 🚧 En construcción. Etapa actual: **3 · Dominio y máquina de estados**.
+> 🚧 En construcción. Etapa actual: **4 · Servicios y API** (backend completo; el frontend llega en la etapa 6).
 
 ## Levantarlo
 
@@ -38,6 +38,17 @@ Contraseña de todos: `Demo-2026!`. La primera vez que ingresás desde un navega
 | Transportista (CABA) | transportista@lisogen-demo.com.ar |
 | Bioinformático | bioinformatico@lisogen-demo.com.ar |
 | Gerente Médico | gerente@lisogen-demo.com.ar |
+
+### Estudios de ejemplo (`make seed`)
+
+| Código | Paciente | Patología | Estado |
+|---|---|---|---|
+| EST-…-000001 | Martín Ibarra (Paciente demo) | Fabry | Finalizado, Resultado positivo |
+| EST-…-000002 | Lucas Ferrari, 2 meses (OSPS) | Pompe · **Urgente** | En análisis por bioinformática |
+| EST-…-000003 | Martín Ibarra (Paciente demo) | Gaucher | Por Pagar, con un Cupón del 20% para aplicar |
+| EST-…-000004 | Valeria Quiroga (Prepaga Andina) | MPS 1 | Creado (para Emitir Presupuesto) |
+| EST-…-000005 | Jorge Medina (Obra Social Federal) | ASMD | Pendiente de Autorización |
+| EST-…-000006 | Paula Sosa (particular) | Fabry | Listo para Retirar en Caballito (Orden del Día de hoy, si es hábil) |
 
 ## Documentación
 
