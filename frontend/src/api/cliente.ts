@@ -1,0 +1,115 @@
+/**
+ * Cliente HTTP tipado generado desde el OpenAPI de la API (`npm run api:tipos`).
+ * Agrega el token y el id de dispositivo, renueva el access token una vez ante un 401 y traduce los
+ * errores `{code, message}` del backend a `ErrorApi`.
+ */
+import createClient, { type Middleware } from 'openapi-fetch'
+import type { components, paths } from './schema'
+import { guardarTokens, idDispositivo, obtenerTokens } from './sesion'
+
+export type Esquemas = components['schemas']
+
+export const API_URL = (import.meta.env.VITE_API_URL ?? 'http://localhost:8000').replace(/\/$/, '')
+
+export class ErrorApi extends Error {
+  constructor(
+    public readonly code: string,
+    message: string,
+    public readonly status: number,
+    public readonly campos: string[] = [],
+  ) {
+    super(message)
+    this.name = 'ErrorApi'
+  }
+}
+
+/** Se dispara cuando la sesión venció y no se pudo renovar (el store de auth redirige al ingreso). */
+export const eventosSesion = new EventTarget()
+
+const reintentos = new WeakMap<Request, Request>()
+let renovando: Promise<boolean> | null = null
+
+async function renovar(): Promise<boolean> {
+  const tokens = obtenerTokens()
+  if (!tokens) return false
+  try {
+    const r = await fetch(`${API_URL}/auth/refresh`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refresh_token: tokens.refresh }),
+    })
+    if (!r.ok) return false
+    const datos = (await r.json()) as Esquemas['IngresoSalida']
+    if (datos.estado !== 'OK' || !datos.access_token || !datos.refresh_token) return false
+    guardarTokens({ access: datos.access_token, refresh: datos.refresh_token })
+    return true
+  } catch {
+    return false
+  }
+}
+
+export const middlewareSesion: Middleware = {
+  onRequest({ request }) {
+    request.headers.set('X-Device-Id', idDispositivo())
+    const tokens = obtenerTokens()
+    if (tokens && !request.headers.has('Authorization')) {
+      request.headers.set('Authorization', `Bearer ${tokens.access}`)
+    }
+    if (!request.url.includes('/auth/')) reintentos.set(request, request.clone())
+    return request
+  },
+  async onResponse({ request, response }) {
+    const copia = reintentos.get(request)
+    reintentos.delete(request)
+    if (response.status !== 401 || !copia || !obtenerTokens()) return response
+    renovando ??= renovar().finally(() => {
+      renovando = null
+    })
+    if (!(await renovando)) {
+      guardarTokens(null)
+      eventosSesion.dispatchEvent(new Event('vencida'))
+      return response
+    }
+    const headers = new Headers(copia.headers)
+    headers.set('Authorization', `Bearer ${obtenerTokens()?.access ?? ''}`)
+    return fetch(new Request(copia, { headers }))
+  },
+}
+
+export const api = createClient<paths>({ baseUrl: API_URL })
+api.use(middlewareSesion)
+
+interface RespuestaApi<T> {
+  data?: T
+  error?: unknown
+  response: Response
+}
+
+/** Devuelve `data` o lanza `ErrorApi` con el `{code, message}` del backend. */
+export async function ok<T>(llamada: Promise<RespuestaApi<T>>): Promise<T> {
+  let r: RespuestaApi<T>
+  try {
+    r = await llamada
+  } catch {
+    throw new ErrorApi('SIN_CONEXION', 'No pudimos conectarnos con LisoGen. Revisá tu conexión.', 0)
+  }
+  if (r.response.ok) return r.data as T
+  const e = (r.error ?? {}) as { code?: string; message?: string; campos?: string[] }
+  throw new ErrorApi(
+    e.code ?? `HTTP_${r.response.status}`,
+    e.message ?? 'Ocurrió un error inesperado. Probá de nuevo.',
+    r.response.status,
+    e.campos ?? [],
+  )
+}
+
+/** Para endpoints multipart: openapi-fetch envía el FormData sin serializar. */
+export function multipart(campos: Record<string, string | Blob | null | undefined>): FormData {
+  const fd = new FormData()
+  for (const [clave, valor] of Object.entries(campos)) {
+    if (valor !== null && valor !== undefined && valor !== '') fd.append(clave, valor)
+  }
+  return fd
+}
+
+export const sinSerializar = { bodySerializer: (b: unknown) => b as FormData }

@@ -1,0 +1,72 @@
+# Infra local de LisoGen: postgres, minio, mailpit, api (FastAPI) y web (Vue + Vite).
+name: lisogen
+
+services:
+  postgres:
+    image: postgres:16.10
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-lisogen}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-lisogen}
+      POSTGRES_DB: ${POSTGRES_DB:-lisogen}
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-lisogen}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # MinIO dejó de publicar imágenes oficiales: se usa el build comunitario pgsty/minio (DECISIONES T8).
+  minio:
+    image: pgsty/minio:RELEASE.2026-08-04T00-00-00Z
+    command: ["server", "/data", "--console-address", ":9001"]
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:-lisogen}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:-lisogen-secret}
+    ports:
+      - "127.0.0.1:9000:9000"   # API S3 (las URLs firmadas apuntan acá)
+      - "127.0.0.1:9001:9001"   # consola web
+    volumes:
+      - minio-data:/data
+
+  mailpit:
+    image: axllent/mailpit:v1.27
+    ports:
+      - "127.0.0.1:1025:1025"   # SMTP
+      - "127.0.0.1:8025:8025"   # bandeja web: http://localhost:8025
+
+  api:
+    build: ./backend
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-lisogen}:${POSTGRES_PASSWORD:-lisogen}@postgres:5432/${POSTGRES_DB:-lisogen}
+      SMTP_HOST: mailpit
+      SMTP_PORT: "1025"
+      MINIO_ENDPOINT: minio:9000
+      MINIO_PUBLIC_ENDPOINT: localhost:9000
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_started
+      mailpit:
+        condition: service_started
+    ports:
+      - "127.0.0.1:8000:8000"
+
+  web:
+    build: ./frontend
+    environment:
+      VITE_API_URL: http://localhost:8000   # el navegador llama a la API directo (CORS sólo admite este origen)
+    depends_on:
+      - api
+    ports:
+      - "127.0.0.1:5173:5173"
+
+volumes:
+  pgdata:
+  minio-data:
