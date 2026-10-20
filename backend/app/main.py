@@ -1,11 +1,11 @@
-"""Aplicación FastAPI: chequeo de salud, `/auth` y manejo de errores `{code, message}`."""
+"""Aplicación FastAPI: chequeo de salud, routers por rol y manejo de errores `{code, message}`."""
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 
 from app.api.errores import registrar_manejadores
-from app.api.routers import auth
+from app.api.routers import auth, avisos, gerente, medico
 from app.config import get_settings
 from app.db import get_sessionmaker
 
@@ -23,7 +23,8 @@ app.add_middleware(
     allow_headers=["Authorization", "Content-Type", "X-Device-Id"],
 )
 registrar_manejadores(app)
-app.include_router(auth.router)
+for router in (auth.router, avisos.router, medico.router, gerente.router):
+    app.include_router(router)
 
 
 @app.get("/salud", tags=["infra"])
