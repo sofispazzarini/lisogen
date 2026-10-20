@@ -45,7 +45,7 @@ Regla de precedencia: **Escenarios + `schema.sql`** > Glosario LEL > prototipo. 
 - **T1 · Refresh tokens sin estado.** El schema no tiene tabla de sesiones, así que el refresh es un JWT firmado con `typ=refresh` y no se puede revocar antes de que expire (7 días). El access dura 15 minutos.
 - **T2 · Rate limit en memoria** (ventana deslizante por IP + email) para `/auth/login` y `/auth/verificar`. Con más de una réplica de la API haría falta Redis.
 - **T3 · Huella de dispositivo.** `sha256(user-agent + X-Device-Id)`; el front genera y persiste el `X-Device-Id`. El cambio de red no se detecta: la IP se guarda en `ultima_ip` pero no dispara el código, para no molestar a usuarios con IP dinámica.
-- **T4 · Un único punto que escribe `estudio.estado`:** `app/services/transiciones.py::transicionar`. Un test recorre el código buscando otras asignaciones.
+- **T4 · Un único punto que escribe `estudio.estado`:** `app/services/transiciones.py::transicionar`. Se hace cumplir dos veces: un listener del ORM rechaza en tiempo de ejecución cualquier asignación fuera de `transicionar`, y un test recorre el código (AST) buscando otras asignaciones.
 - **T5 · Montos** con `Decimal` y redondeo `ROUND_HALF_UP` a 2 decimales.
 - **T6 · Integraciones:** `INTEGRACIONES_MODO=mock` (por defecto). El `integracion_log` guarda request y response sin datos personales: sólo ids, códigos de gen y montos.
 - **T7 · Log de integraciones en la misma transacción.** `integracion_log` se escribe en la sesión del caso de uso: si la operación de negocio falla y se revierte, también se revierte el log de esa llamada.
