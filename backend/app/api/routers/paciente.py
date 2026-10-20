@@ -4,10 +4,10 @@ E12 Cancelar Turno, E14 Consultar Chatbot. Un Paciente sólo ve sus Estudios."""
 from datetime import date
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, File, Form, Query, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, Query, Request, UploadFile, status
 from sqlalchemy import select
 
-from app.api.deps import Ints, Sesion, requiere_rol
+from app.api.deps import Ints, Sesion, ip_cliente, requiere_rol
 from app.domain.enums import RolUsuario
 from app.domain.errores import ErrorNegocio, NoEncontrado
 from app.models import Estudio, Paciente, Usuario
@@ -18,10 +18,11 @@ from app.schemas.comun import (
     EstudioResumen,
     Ok,
     PresupuestoSalida,
+    ResultadoSalida,
     TurnoSalida,
 )
 from app.schemas.roles import AgendaDia, ChatEntrada, ChatMensajeSalida, CuponSalida, PagoSalida, TurnoEntrada
-from app.services import chatbot, consultas, cupones, finanzas, turnos
+from app.services import chatbot, consultas, cupones, finanzas, resultados, turnos
 from app.services.estudios import estudio_del_paciente
 
 router = APIRouter(
@@ -176,3 +177,17 @@ async def chatbot_preguntar(
     datos: ChatEntrada, usuario: PacienteU, session: Sesion, ints: Ints
 ) -> ChatMensajeSalida:
     return await chatbot.preguntar(session, ints, usuario, datos.pregunta)
+
+
+# --- E13 Consultar Resultado ------------------------------------------------------------------
+
+
+@router.get(
+    "/estudios/{estudio_id}/resultado", response_model=ResultadoSalida, summary="Consultar Resultado (E13)"
+)
+async def resultado(
+    estudio_id: int, usuario: PacienteU, session: Sesion, ints: Ints, request: Request
+) -> ResultadoSalida:
+    """Cada lectura queda auditada. El PDF se descarga con una URL firmada de corta duración."""
+    estudio = await estudio_del_paciente(session, usuario, estudio_id)
+    return await resultados.resultado(session, ints, usuario, estudio, ip_cliente(request))

@@ -5,7 +5,17 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 
 from app.api.errores import registrar_manejadores
-from app.api.routers import administrativo, auth, avisos, gerente, medico, paciente
+from app.api.routers import (
+    administrativo,
+    auth,
+    avisos,
+    bioinformatico,
+    gerente,
+    integraciones,
+    medico,
+    paciente,
+    transportista,
+)
 from app.config import get_settings
 from app.db import get_sessionmaker
 
@@ -29,7 +39,10 @@ for router in (
     medico.router,
     paciente.router,
     administrativo.router,
+    transportista.router,
+    bioinformatico.router,
     gerente.router,
+    integraciones.router,
 ):
     app.include_router(router)
 
