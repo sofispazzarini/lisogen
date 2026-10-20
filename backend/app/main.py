@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 
 from app.api.errores import registrar_manejadores
-from app.api.routers import auth, avisos, gerente, medico
+from app.api.routers import administrativo, auth, avisos, gerente, medico, paciente
 from app.config import get_settings
 from app.db import get_sessionmaker
 
@@ -23,7 +23,14 @@ app.add_middleware(
     allow_headers=["Authorization", "Content-Type", "X-Device-Id"],
 )
 registrar_manejadores(app)
-for router in (auth.router, avisos.router, medico.router, gerente.router):
+for router in (
+    auth.router,
+    avisos.router,
+    medico.router,
+    paciente.router,
+    administrativo.router,
+    gerente.router,
+):
     app.include_router(router)
 
 
