@@ -1,0 +1,106 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: lisogen
+          POSTGRES_PASSWORD: lisogen
+          POSTGRES_DB: lisogen
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U lisogen"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql+asyncpg://lisogen:lisogen@localhost:5432/lisogen
+      ENTORNO: test
+      MAIL_MODO: memoria
+      STORAGE_MODO: memoria
+      SCHEDULER_ACTIVO: "false"
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: ¿Existe backend/?
+        id: existe
+        working-directory: .
+        run: |
+          if [ -d backend ]; then echo "ok=true" >> "$GITHUB_OUTPUT"; else echo "ok=false" >> "$GITHUB_OUTPUT"; echo "::notice::backend/ todavía no existe: se saltea el job."; fi
+
+      - uses: astral-sh/setup-uv@v6
+        if: steps.existe.outputs.ok == 'true'
+        with:
+          enable-cache: true
+          cache-dependency-glob: backend/uv.lock
+
+      - name: uv sync
+        if: steps.existe.outputs.ok == 'true'
+        run: uv sync --frozen
+
+      - name: ruff check
+        if: steps.existe.outputs.ok == 'true'
+        run: uv run ruff check .
+
+      - name: mypy
+        if: steps.existe.outputs.ok == 'true'
+        run: uv run mypy app
+
+      - name: alembic upgrade head
+        if: steps.existe.outputs.ok == 'true'
+        run: uv run alembic upgrade head
+
+      - name: pytest
+        if: steps.existe.outputs.ok == 'true'
+        run: uv run pytest
+
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: ¿Existe frontend/?
+        id: existe
+        working-directory: .
+        run: |
+          if [ -d frontend ]; then echo "ok=true" >> "$GITHUB_OUTPUT"; else echo "ok=false" >> "$GITHUB_OUTPUT"; echo "::notice::frontend/ todavía no existe: se saltea el job."; fi
+
+      - uses: actions/setup-node@v4
+        if: steps.existe.outputs.ok == 'true'
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: npm ci
+        if: steps.existe.outputs.ok == 'true'
+        run: npm ci
+
+      - name: lint
+        if: steps.existe.outputs.ok == 'true'
+        run: npm run lint
+
+      - name: vue-tsc
+        if: steps.existe.outputs.ok == 'true'
+        run: npx vue-tsc --noEmit
+
+      - name: test
+        if: steps.existe.outputs.ok == 'true'
+        run: npm run test
