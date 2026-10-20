@@ -41,6 +41,6 @@ Fuente: `docs/Escenarios.pdf` (E1–E33). Cada endpoint y cada vista se trazan a
 
 Transversales: `GET /avisos`, `POST /avisos/{id}/leido`, `POST /avisos/leidos` (bandeja de Avisos en cada layout, cualquier rol); `GET /{rol}/estudios` (tabla con badge de Estado y Urgente).
 
-Jobs: `jobs/orden_del_dia.py` (06:00 L–V no feriado, E23) · `jobs/recordatorios.py` (día anterior, E11) · `jobs/cierre_jornada.py` (RESERVADO vencido → AUSENTE, +inasistencia; 5 → POR_PAGAR + PERDIDA_POR_INASISTENCIAS, E11).
+Jobs (`app/jobs/tareas.py`, programados en `app/jobs/scheduler.py`): `orden_del_dia` (06:00 L–V sin feriados, E23) · `cierre_de_jornada` (18:30 L–V: RESERVADO vencido → AUSENTE, +inasistencia; 5 → POR_PAGAR + PERDIDA_POR_INASISTENCIAS, E11) · `recordatorios` (día anterior, E11) · `mails` (bandeja de salida de avisos) · `fedex` (confirmación simulada del retiro, E20, sólo mock).
 
 Fuera de alcance (PO): tablero de control de gerencia, WhatsApp, pasarela de pago real.

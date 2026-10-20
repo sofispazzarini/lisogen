@@ -2,7 +2,7 @@
 COMPOSE := docker compose
 BACKEND := cd backend &&
 
-.PHONY: help up down logs ps migrate seed test test-unit lint fmt
+.PHONY: help up down logs ps migrate seed job test test-unit lint fmt
 
 help: ## Lista los comandos
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "}; {printf "  make %-10s %s\n", $$1, $$2}'
@@ -24,6 +24,9 @@ migrate: ## alembic upgrade head dentro del contenedor de la API
 
 seed: ## Vacía la base y recarga los datos de ejemplo
 	$(COMPOSE) exec api python -m app.seed
+
+job: ## Corre una tarea programada a mano: make job TAREA=orden_del_dia|cierre_de_jornada|recordatorios|mails|fedex
+	$(COMPOSE) exec api python -m app.jobs $(TAREA)
 
 test: ## Tests del backend contra el Postgres de compose (crea y borra bases *_test_*)
 	$(BACKEND) uv run pytest

@@ -4,7 +4,7 @@ Sistema de gestión de Estudios de exoma clínico para cinco Patologías lisosom
 
 **Stack:** PostgreSQL 16 · FastAPI · Vue 3
 
-> 🚧 En construcción. Etapa actual: **4 · Servicios y API** (backend completo; el frontend llega en la etapa 6).
+> 🚧 En construcción. Etapa actual: **5 · Integraciones y jobs** (backend completo; el frontend llega en la etapa 6).
 
 ## Levantarlo
 
@@ -49,6 +49,18 @@ Contraseña de todos: `Demo-2026!`. La primera vez que ingresás desde un navega
 | EST-…-000004 | Valeria Quiroga (Prepaga Andina) | MPS 1 | Creado (para Emitir Presupuesto) |
 | EST-…-000005 | Jorge Medina (Obra Social Federal) | ASMD | Pendiente de Autorización |
 | EST-…-000006 | Paula Sosa (particular) | Fabry | Listo para Retirar en Caballito (Orden del Día de hoy, si es hábil) |
+
+### Tareas programadas
+
+Corren dentro de la API con APScheduler (hora Argentina). Para la demo se pueden disparar a mano con `make job TAREA=<nombre>`.
+
+| Tarea | Cuándo | Qué hace |
+|---|---|---|
+| `orden_del_dia` | L–V 06:00 | Genera la Orden del Día de cada Transportista (no en feriados) |
+| `cierre_de_jornada` | L–V 18:30 | Turnos vencidos sin Muestra → Ausente; con 5 inasistencias se pierde el pago |
+| `recordatorios` | cada 15' | Recordatorio del Turno el día anterior a las 9 |
+| `mails` | cada 15" | Envía los avisos por mail pendientes (Mailpit en local) |
+| `fedex` | cada 1' | Sólo con integraciones mock: FedEx confirma los retiros cuya hora ya pasó |
 
 ## Documentación
 
