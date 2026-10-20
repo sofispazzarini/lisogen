@@ -121,15 +121,16 @@ async def _paciente_demo(session: AsyncSession, usuarios: dict[RolUsuario, Usuar
     session.add(paciente)
     await session.flush()
     session.add_all(PacienteSintoma(paciente_id=paciente.id, concept_id=c) for c in d.sintomas)
-    patologia_id = await session.scalar(select(Patologia.id).where(Patologia.nombre == d.patologia))
-    session.add(
-        DiagnosticoPresuntivo(
-            paciente_id=paciente.id,
-            patologia_id=patologia_id,
-            tipo_sospecha=TipoSospecha.CLINICA,
-            medico_id=medico.id,
+    for nombre in d.patologias:
+        patologia_id = await session.scalar(select(Patologia.id).where(Patologia.nombre == nombre))
+        session.add(
+            DiagnosticoPresuntivo(
+                paciente_id=paciente.id,
+                patologia_id=patologia_id,
+                tipo_sospecha=TipoSospecha.CLINICA,
+                medico_id=medico.id,
+            )
         )
-    )
     await session.flush()
     return paciente
 

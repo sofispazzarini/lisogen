@@ -10,7 +10,7 @@ from app.api.deps import Ints, Sesion, ip_cliente, requiere_rol
 from app.domain.enums import RolUsuario
 from app.domain.errores import NoEncontrado
 from app.models import Estudio, ObraSocial, Patologia, Usuario
-from app.schemas.comun import Concepto, Error, EstudioDetalle, EstudioResumen, Ok, Opcion
+from app.schemas.comun import Concepto, Error, EstudioDetalle, EstudioResumen, Ok, Opcion, ResultadoSalida
 from app.schemas.roles import (
     AsignarCuponEntrada,
     BuscarEntrada,
@@ -24,7 +24,7 @@ from app.schemas.roles import (
     PatologiaSalida,
     ReanalisisEntrada,
 )
-from app.services import consultas, cupones, estudios, pacientes, patologias
+from app.services import consultas, cupones, estudios, pacientes, patologias, resultados
 from app.services.comun import auditar
 
 router = APIRouter(
@@ -174,3 +174,13 @@ async def mis_cupones(medico: Medico, session: Sesion, ints: Ints) -> list[Cupon
 async def asignar_cupon(cupon_id: int, datos: AsignarCuponEntrada, medico: Medico, session: Sesion) -> Ok:
     await cupones.asignar_a_paciente(session, medico, cupon_id, datos.paciente_id)
     return Ok()
+
+
+@router.get(
+    "/estudios/{estudio_id}/resultado", response_model=ResultadoSalida, summary="Resultado del Estudio (E28)"
+)
+async def resultado(
+    estudio_id: int, medico: Medico, session: Sesion, ints: Ints, request: Request
+) -> ResultadoSalida:
+    estudio = await estudios.estudio_del_medico(session, medico, estudio_id)
+    return await resultados.resultado(session, ints, medico, estudio, ip_cliente(request))
