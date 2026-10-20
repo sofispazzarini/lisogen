@@ -240,15 +240,17 @@ class PacienteDemo:
     fecha_nacimiento: date
     resumen_historia_clinica: str
     sintomas: tuple[int, ...]
-    patologia: str
+    patologias: tuple[str, ...]
 
 
-# Paciente demo (cuenta paciente@…): sospecha de Fabry con síntoma cardinal; particular.
+# Paciente demo (cuenta paciente@…), particular. Sospecha de Fabry (síntoma cardinal) y de Gaucher
+# (síntoma cardinal esplenomegalia): un Estudio de cada uno en el seed de Estudios.
 PACIENTE_DEMO: Final = PacienteDemo(
     dni="30111222",
     fecha_nacimiento=date(1985, 3, 14),
     resumen_historia_clinica="Dolor urente en manos y pies desde la adolescencia, intolerancia al calor y "
-    "lesiones cutáneas puntiformes en zona del traje de baño. Proteinuria leve en control reciente.",
-    sintomas=(79256006, 254788004, 45004005, 29738008),
-    patologia="Fabry",
+    "lesiones cutáneas puntiformes en zona del traje de baño. Proteinuria leve en control reciente. "
+    "En la última ecografía, esplenomegalia moderada.",
+    sintomas=(79256006, 254788004, 45004005, 29738008, 16294009),
+    patologias=("Fabry", "Gaucher"),
 )
