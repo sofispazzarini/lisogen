@@ -48,3 +48,8 @@ Regla de precedencia: **Escenarios + `schema.sql`** > Glosario LEL > prototipo. 
 - **T4 · Un único punto que escribe `estudio.estado`:** `app/services/transiciones.py::transicionar`. Un test recorre el código buscando otras asignaciones.
 - **T5 · Montos** con `Decimal` y redondeo `ROUND_HALF_UP` a 2 decimales.
 - **T6 · Integraciones:** `INTEGRACIONES_MODO=mock` (por defecto). El `integracion_log` guarda request y response sin datos personales: sólo ids, códigos de gen y montos.
+- **T7 · Log de integraciones en la misma transacción.** `integracion_log` se escribe en la sesión del caso de uso: si la operación de negocio falla y se revierte, también se revierte el log de esa llamada.
+- **T8 · Imagen de MinIO.** MinIO dejó de publicar imágenes oficiales (`minio/minio` ya no está en Docker Hub ni en Quay). `docker-compose.yml` usa `pgsty/minio:RELEASE.2026-08-04T00-00-00Z`, un build comunitario del mismo código con el mismo entrypoint y las mismas variables (`MINIO_ROOT_USER`/`MINIO_ROOT_PASSWORD`). El bucket privado lo crea la API en el primer uso.
+- **T9 · Seed por etapas.** En la etapa 1 el seed carga los catálogos (24 provincias, 12 especialidades, 3 Obras Sociales, 34 conceptos SNOMED verificados, 5 Patologías con sus genes, 10 genes, 16 feriados 2026, 10 Centros), un usuario por rol y el Paciente demo. Los 6 Estudios de ejemplo se suman en la etapa 4 recorriendo los servicios reales, para que su historial de Estados sea consistente.
+- **T10 · Feriados 2026.** Sólo feriados nacionales (Ley 27.399), con los trasladables movidos al lunes. No se incluyen días no laborables ni "puentes" turísticos.
+- **T11 · `downgrade` de 0001.** Borra tablas, tipos ENUM y la extensión `citext` creados por `schema.sql`, sin tocar `alembic_version`.

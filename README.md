@@ -4,7 +4,40 @@ Sistema de gestión de Estudios de exoma clínico para cinco Patologías lisosom
 
 **Stack:** PostgreSQL 16 · FastAPI · Vue 3
 
-> 🚧 En construcción.
+> 🚧 En construcción. Etapa actual: **1 · Infra y migración**.
+
+## Levantarlo
+
+Requisitos: Docker (con Compose v2) y [uv](https://docs.astral.sh/uv/) para correr los tests fuera de Docker.
+
+```bash
+cp .env.example .env
+make up      # postgres 16, minio, mailpit y la API (aplica las migraciones al iniciar)
+make seed    # vacía la base y carga los datos de ejemplo
+make test    # tests del backend contra el Postgres de compose
+```
+
+| Servicio | URL |
+|---|---|
+| API (OpenAPI) | http://localhost:8000/docs |
+| Chequeo de salud | http://localhost:8000/salud |
+| Mailpit (mails enviados) | http://localhost:8025 |
+| Consola de MinIO | http://localhost:9001 |
+
+`make help` lista todos los comandos.
+
+### Usuarios demo
+
+Contraseña de todos: `Demo-2026!`
+
+| Rol | Mail |
+|---|---|
+| Médico Tratante | medico@lisogen-demo.com.ar |
+| Paciente | paciente@lisogen-demo.com.ar |
+| Administrativo del Laboratorio | administrativo@lisogen-demo.com.ar |
+| Transportista (CABA) | transportista@lisogen-demo.com.ar |
+| Bioinformático | bioinformatico@lisogen-demo.com.ar |
+| Gerente Médico | gerente@lisogen-demo.com.ar |
 
 ## Documentación
 
