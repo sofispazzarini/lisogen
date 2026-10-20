@@ -1,6 +1,6 @@
 # TRAZABILIDAD — Escenario → servicio → endpoint → vista
 
-Fuente: `docs/Escenarios.pdf` (E1–E33). Cada endpoint y cada vista se trazan a un Escenario. Los servicios viven en `backend/app/services/`, los routers en `backend/app/api/routers/` y las vistas en `frontend/src/views/`.
+Fuente: `docs/Escenarios.pdf` (E1–E33). Cada endpoint y cada vista se trazan a un Escenario. Los servicios viven en `backend/app/services/`, los routers en `backend/app/api/routers/` y las vistas en `frontend/src/views/` (la navegación por rol está en `frontend/src/layouts/navegacion.ts`, con los Escenarios de cada ítem).
 
 | Esc. | Título | Rol | Servicio (`services/`) | Endpoint | Vista (`views/<rol>/`) |
 |---|---|---|---|---|---|
@@ -32,7 +32,7 @@ Fuente: `docs/Escenarios.pdf` (E1–E33). Cada endpoint y cada vista se trazan a
 | E25 | Confirmar llegada Lab Central | Transportista | `lotes.confirmar_llegada` (+`domain.reglas.armar_lotes`, CSV al Ministerio, sellado, re-extracción < 2 ml) | `POST /transportista/llegada` | `transportista/ConfirmarLlegada` |
 | E26 | Registrar Bioinformático | Bioinformático | `registro.registrar_profesional(rol=BIOINF)` | `POST /auth/registro` | `auth/RegistroProfesional` |
 | E27 | Tomar Estudio | Bioinformático | `analisis.pendientes`, `analisis.tomar` (lock optimista con `version` → 409) | `GET /bioinformatico/pendientes`, `POST /bioinformatico/estudios/{id}/tomar`, `GET /bioinformatico/estudios` | `bioinformatico/Pendientes` |
-| E28 | Cargar Variantes | Bioinformático | `analisis.variantes_de_gen`, `analisis.confirmar_resultado` (+`domain.reglas.tipo_resultado`, PDF, avisos) | `GET /bioinformatico/estudios/{id}`, `GET /bioinformatico/estudios/{id}/genes/{gen}/variantes`, `POST /bioinformatico/estudios/{id}/resultado` | `bioinformatico/CargarVariantes` |
+| E28 | Cargar Variantes | Bioinformático | `analisis.variantes_de_gen`, `analisis.confirmar_resultado` (+`domain.reglas.tipo_resultado`, PDF, avisos) | `GET /bioinformatico/estudios/{id}`, `GET /bioinformatico/estudios/{id}/genes/{gen}/variantes`, `POST /bioinformatico/estudios/{id}/resultado` | `bioinformatico/CargarVariantes`, `bioinformatico/MisEstudios` |
 | E29 | Registrar Gerente Médico | Gerente | `registro.registrar_profesional(rol=GERENTE)` | `POST /auth/registro` | `auth/RegistroProfesional` |
 | E30 | Dar de alta Patología | Gerente | `patologias.dar_de_alta` | `GET /gerente/snomed?q=`, `GET /gerente/patologias`, `POST /gerente/patologias` | `gerente/Patologias` |
 | E31 | Modificar Patología | Gerente | `patologias.modificar` | `PUT /gerente/patologias/{id}` | `gerente/Patologias` |
