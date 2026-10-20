@@ -7,6 +7,7 @@ import os
 from collections.abc import AsyncIterator, Iterator
 from pathlib import Path
 
+import httpx
 import psycopg
 import pytest
 from alembic import command
@@ -15,8 +16,23 @@ from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, create_async_engine
 
 from app.config import get_settings
+from app.db import ejecutar_post_commit, get_session
+from app.integrations.infra import MailMemoria
+from app.integrations.registro import Adaptadores, Integraciones
 
 BACKEND = Path(__file__).resolve().parents[1]
+
+
+def pytest_configure(config: pytest.Config) -> None:
+    """Mail y archivos en memoria, sin scheduler. Se fija antes de importar la app (Settings se cachea)."""
+    for clave, valor in {
+        "ENTORNO": "test",
+        "MAIL_MODO": "memoria",
+        "STORAGE_MODO": "memoria",
+        "SCHEDULER_ACTIVO": "false",
+    }.items():
+        os.environ.setdefault(clave, valor)
+    get_settings.cache_clear()
 
 
 def url_base() -> str:
@@ -84,3 +100,42 @@ async def session(engine: AsyncEngine) -> AsyncIterator[AsyncSession]:
         finally:
             await s.close()
             await trans.rollback()
+
+
+@pytest.fixture
+def adaptadores() -> Adaptadores:
+    return Adaptadores(get_settings())
+
+
+@pytest.fixture
+def mails(adaptadores: Adaptadores) -> MailMemoria:
+    assert isinstance(adaptadores.mail, MailMemoria)
+    return adaptadores.mail
+
+
+@pytest.fixture
+async def cliente(session: AsyncSession, adaptadores: Adaptadores) -> AsyncIterator[httpx.AsyncClient]:
+    """Cliente HTTP contra la app, con la sesión del test (mismo ciclo commit/post-commit que get_session)."""
+    from app.api.deps import get_integraciones
+    from app.main import app
+    from app.services.auth import limitador
+
+    async def _session() -> AsyncIterator[AsyncSession]:
+        await session.commit()  # fija los datos que preparó el test antes del request
+        try:
+            yield session
+            await session.commit()
+        except BaseException:
+            await session.rollback()
+            raise
+        await ejecutar_post_commit(session)
+        await session.commit()
+
+    app.dependency_overrides[get_session] = _session
+    app.dependency_overrides[get_integraciones] = lambda: Integraciones(session, adaptadores)
+    limitador.reiniciar()
+    transporte = httpx.ASGITransport(app=app)
+    cabeceras = {"User-Agent": "pytest", "X-Device-Id": "dispositivo-de-prueba"}
+    async with httpx.AsyncClient(transport=transporte, base_url="http://test", headers=cabeceras) as c:
+        yield c
+    app.dependency_overrides.clear()
