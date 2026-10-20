@@ -2,19 +2,29 @@
 
 import hashlib
 import uuid
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 
 from sqlalchemy import inspect, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import security
-from app.domain.enums import EstadoEstudio, EstadoMuestra, EstadoTurno, RolUsuario, TipoArchivo, TipoEstudio
+from app.domain.enums import (
+    EstadoEstudio,
+    EstadoMuestra,
+    EstadoTurno,
+    OrigenGen,
+    RolUsuario,
+    TipoArchivo,
+    TipoEstudio,
+)
 from app.models import (
     Archivo,
     CentroExtraccion,
     DatosCrudos,
     Estudio,
+    EstudioGen,
+    Gen,
     Muestra,
     Paciente,
     ProfesionalMedico,
@@ -124,71 +134,110 @@ async def seed(session: AsyncSession) -> dict[RolUsuario, Usuario]:
     return {u.rol: u for u in await session.scalars(select(Usuario))}
 
 
+CAMINO: list[tuple[EstadoEstudio, RolUsuario | None]] = [
+    (EstadoEstudio.POR_PAGAR, RolUsuario.ADMINISTRATIVO),
+    (EstadoEstudio.PAGADO, RolUsuario.PACIENTE),
+    (EstadoEstudio.TURNO_SACADO, RolUsuario.PACIENTE),
+    (EstadoEstudio.LISTO_PARA_RETIRAR, None),
+    (EstadoEstudio.EN_CAMINO_LAB_CENTRAL, RolUsuario.TRANSPORTISTA),
+    (EstadoEstudio.EN_LAB_CENTRAL, RolUsuario.TRANSPORTISTA),
+    (EstadoEstudio.EN_ESPERA_RETIRO, None),
+    (EstadoEstudio.EN_VIAJE_COREA, None),
+    (EstadoEstudio.EN_ANALISIS_BIOINFORMATICA, RolUsuario.ADMINISTRATIVO),
+    (EstadoEstudio.EN_ANALISIS, RolUsuario.BIOINFORMATICO),
+    (EstadoEstudio.FINALIZADO, RolUsuario.BIOINFORMATICO),
+]
+_ESTADO_MUESTRA = {
+    EstadoEstudio.LISTO_PARA_RETIRAR: EstadoMuestra.LISTO_PARA_RETIRAR,
+    EstadoEstudio.EN_CAMINO_LAB_CENTRAL: EstadoMuestra.EN_CAMINO_LAB_CENTRAL,
+    EstadoEstudio.EN_LAB_CENTRAL: EstadoMuestra.EN_LAB_CENTRAL,
+    EstadoEstudio.EN_ESPERA_RETIRO: EstadoMuestra.EN_LOTE,
+    EstadoEstudio.EN_VIAJE_COREA: EstadoMuestra.EN_VIAJE_COREA,
+}
+
+
+async def estudio_en(
+    session: AsyncSession,
+    paciente_: Paciente,
+    medico: Usuario,
+    hasta: EstadoEstudio,
+    *,
+    bioinformatico: Usuario | None = None,
+    genes: tuple[str, ...] = ("GLA",),
+    urgente: bool = False,
+    centro_id: int | None = None,
+    volumen_ml: Decimal = Decimal("4"),
+) -> Estudio:
+    """Exoma llevado por `transicionar` hasta `hasta`, con Turno, Muestra y datos crudos coherentes.
+    Requiere el seed (Centros de Extracción). Para probar servicios sin recorrer toda la API."""
+    e = await estudio(session, paciente_, medico, urgente=urgente)
+    for simbolo in genes:
+        gen = await session.scalar(select(Gen).where(Gen.simbolo == simbolo))
+        if gen is None:
+            gen = Gen(simbolo=simbolo)
+            session.add(gen)
+            await session.flush()
+        session.add(EstudioGen(estudio_id=e.id, gen_id=gen.id, origen=OrigenGen.API_PATOLOGIA))
+    usuarios: dict[RolUsuario, Usuario] = {}
+    if bioinformatico is not None:
+        usuarios[RolUsuario.BIOINFORMATICO] = bioinformatico
+    muestra: Muestra | None = None
+    for destino, rol in CAMINO:
+        if rol is not None and rol not in usuarios:
+            usuarios[rol] = await usuario(session, rol)
+        if destino == EstadoEstudio.EN_ANALISIS:
+            e.bioinformatico_id = usuarios[RolUsuario.BIOINFORMATICO].id
+        await transicionar(session, e, destino, usuarios[rol] if rol else None)
+        if destino == EstadoEstudio.LISTO_PARA_RETIRAR:
+            cid = centro_id or await session.scalar(
+                select(CentroExtraccion.id).order_by(CentroExtraccion.id).limit(1)
+            )
+            assert cid is not None, "estudio_en requiere el seed (Centros de Extracción)"
+            turno = Turno(
+                estudio_id=e.id,
+                centro_id=cid,
+                inicio=datetime(2026, 9, 1, 13, 0, tzinfo=UTC) + timedelta(minutes=15 * (e.id % 30)),
+                estado=EstadoTurno.REALIZADO,
+            )
+            session.add(turno)
+            await session.flush()
+            muestra = Muestra(estudio_id=e.id, turno_id=turno.id, volumen_ml=volumen_ml)
+            session.add(muestra)
+            await session.flush()
+        if muestra is not None and destino in _ESTADO_MUESTRA:
+            muestra.estado = _ESTADO_MUESTRA[destino]
+        if destino == EstadoEstudio.EN_ANALISIS_BIOINFORMATICA:
+            assert muestra is not None
+            muestra.estado = EstadoMuestra.PROCESADA
+            contenido = b"datos crudos"
+            archivo = Archivo(
+                tipo=TipoArchivo.DATOS_CRUDOS,
+                nombre="crudos.fastq",
+                mime="application/octet-stream",
+                tamano_bytes=len(contenido),
+                storage_key=f"datos_crudos/{_sufijo()}",
+                sha256=hashlib.sha256(contenido).hexdigest(),
+            )
+            session.add(archivo)
+            await session.flush()
+            session.add(
+                DatosCrudos(
+                    estudio_id=e.id,
+                    muestra_id=muestra.id,
+                    archivo_id=archivo.id,
+                    cargado_por=usuarios[RolUsuario.ADMINISTRATIVO].id,
+                )
+            )
+        if destino == hasta:
+            break
+    await session.flush()
+    return e
+
+
 async def estudio_finalizado(
     session: AsyncSession, paciente_: Paciente, medico: Usuario, bioinformatico: Usuario
 ) -> Estudio:
     """Exoma FINALIZADO con Muestra procesada y datos crudos, para probar el Reanálisis (E6)."""
-    e = await estudio(session, paciente_, medico)
-    pasos = [
-        EstadoEstudio.POR_PAGAR,
-        EstadoEstudio.PAGADO,
-        EstadoEstudio.TURNO_SACADO,
-        EstadoEstudio.LISTO_PARA_RETIRAR,
-        EstadoEstudio.EN_CAMINO_LAB_CENTRAL,
-        EstadoEstudio.EN_LAB_CENTRAL,
-        EstadoEstudio.EN_ESPERA_RETIRO,
-        EstadoEstudio.EN_VIAJE_COREA,
-        EstadoEstudio.EN_ANALISIS_BIOINFORMATICA,
-        EstadoEstudio.EN_ANALISIS,
-        EstadoEstudio.FINALIZADO,
-    ]
-    actores = {
-        EstadoEstudio.POR_PAGAR: RolUsuario.ADMINISTRATIVO,
-        EstadoEstudio.PAGADO: RolUsuario.PACIENTE,
-        EstadoEstudio.TURNO_SACADO: RolUsuario.PACIENTE,
-        EstadoEstudio.EN_CAMINO_LAB_CENTRAL: RolUsuario.TRANSPORTISTA,
-        EstadoEstudio.EN_LAB_CENTRAL: RolUsuario.TRANSPORTISTA,
-        EstadoEstudio.EN_ANALISIS_BIOINFORMATICA: RolUsuario.ADMINISTRATIVO,
-        EstadoEstudio.EN_ANALISIS: RolUsuario.BIOINFORMATICO,
-        EstadoEstudio.FINALIZADO: RolUsuario.BIOINFORMATICO,
-    }
-    usuarios: dict[RolUsuario, Usuario] = {RolUsuario.BIOINFORMATICO: bioinformatico}
-    for destino in pasos:
-        rol = actores.get(destino)
-        if rol is not None and rol not in usuarios:
-            usuarios[rol] = await usuario(session, rol)
-        if destino == EstadoEstudio.EN_ANALISIS:
-            e.bioinformatico_id = bioinformatico.id
-        await transicionar(session, e, destino, usuarios[rol] if rol else None)
-
-    centro = await session.scalar(select(CentroExtraccion).limit(1))
-    assert centro is not None, "estudio_finalizado requiere el seed (Centros de Extracción)"
-    turno = Turno(
-        estudio_id=e.id,
-        centro_id=centro.id,
-        inicio=datetime(2026, 9, 1, 13, 0, tzinfo=UTC),
-        estado=EstadoTurno.REALIZADO,
+    return await estudio_en(
+        session, paciente_, medico, EstadoEstudio.FINALIZADO, bioinformatico=bioinformatico, genes=()
     )
-    session.add(turno)
-    await session.flush()
-    muestra = Muestra(
-        estudio_id=e.id, turno_id=turno.id, volumen_ml=Decimal("4"), estado=EstadoMuestra.PROCESADA
-    )
-    contenido = b"datos crudos"
-    archivo = Archivo(
-        tipo=TipoArchivo.DATOS_CRUDOS,
-        nombre="crudos.fastq",
-        mime="application/octet-stream",
-        tamano_bytes=len(contenido),
-        storage_key=f"datos_crudos/{_sufijo()}",
-        sha256=hashlib.sha256(contenido).hexdigest(),
-    )
-    session.add_all([muestra, archivo])
-    await session.flush()
-    session.add(
-        DatosCrudos(
-            estudio_id=e.id, muestra_id=muestra.id, archivo_id=archivo.id, cargado_por=bioinformatico.id
-        )
-    )
-    await session.flush()
-    return e
