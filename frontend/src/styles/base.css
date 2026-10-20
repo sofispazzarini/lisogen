@@ -1,0 +1,328 @@
+/* LisoGen · estilos base con variables CSS (sin librerías de UI). */
+
+:root {
+  --color-fondo: #f4f6f9;
+  --color-superficie: #ffffff;
+  --color-superficie-2: #f8fafc;
+  --color-borde: #dde3ea;
+  --color-texto: #1b2533;
+  --color-texto-suave: #5b6878;
+  --color-primario: #1d4e89;
+  --color-primario-hover: #163d6b;
+  --color-primario-suave: #e6eef8;
+  --color-acento: #0f8a6c;
+
+  --tono-neutro-fondo: #eef1f5;
+  --tono-neutro-texto: #3f4b5b;
+  --tono-accion-fondo: #fff3d6;
+  --tono-accion-texto: #7a5300;
+  --tono-alerta-fondo: #ffe8cc;
+  --tono-alerta-texto: #8a4100;
+  --tono-error-fondo: #fde4e4;
+  --tono-error-texto: #a1181f;
+  --tono-progreso-fondo: #e3edfb;
+  --tono-progreso-texto: #1d4e89;
+  --tono-exito-fondo: #dff4ea;
+  --tono-exito-texto: #0b6b4f;
+  --color-urgente: #c62828;
+
+  --radio: 10px;
+  --radio-chico: 6px;
+  --sombra: 0 1px 2px rgb(15 23 42 / 6%), 0 4px 12px rgb(15 23 42 / 6%);
+  --espacio: 16px;
+  --fuente: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --ancho-max: 1180px;
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-fondo: #0f141b;
+    --color-superficie: #171e27;
+    --color-superficie-2: #1d2631;
+    --color-borde: #2c3846;
+    --color-texto: #e6ebf1;
+    --color-texto-suave: #9aa8b8;
+    --color-primario: #5c9be6;
+    --color-primario-hover: #7cb0ef;
+    --color-primario-suave: #1c2d44;
+    --tono-neutro-fondo: #243041;
+    --tono-neutro-texto: #c9d3df;
+    --tono-accion-fondo: #3a2f12;
+    --tono-accion-texto: #f3cf7a;
+    --tono-alerta-fondo: #3d2a14;
+    --tono-alerta-texto: #f6b977;
+    --tono-error-fondo: #3d1a1d;
+    --tono-error-texto: #f4a2a6;
+    --tono-progreso-fondo: #1b2b42;
+    --tono-progreso-texto: #9cc3f3;
+    --tono-exito-fondo: #13342a;
+    --tono-exito-texto: #8be0bf;
+    --color-urgente: #ff6b6b;
+    color-scheme: dark;
+  }
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  background: var(--color-fondo);
+  color: var(--color-texto);
+  font-family: var(--fuente);
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+a {
+  color: var(--color-primario);
+}
+
+h1,
+h2,
+h3 {
+  line-height: 1.25;
+  margin: 0 0 12px;
+}
+
+h1 {
+  font-size: 1.5rem;
+}
+
+h2 {
+  font-size: 1.15rem;
+}
+
+.pagina {
+  display: grid;
+  gap: var(--espacio);
+  align-content: start;
+}
+
+.encabezado {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.encabezado p {
+  margin: 4px 0 0;
+  color: var(--color-texto-suave);
+}
+
+.tarjeta {
+  background: var(--color-superficie);
+  border: 1px solid var(--color-borde);
+  border-radius: var(--radio);
+  box-shadow: var(--sombra);
+  padding: 20px;
+}
+
+.grilla-2 {
+  display: grid;
+  gap: var(--espacio);
+  grid-template-columns: repeat(auto-fit, minmax(min(320px, 100%), 1fr));
+}
+
+.fila {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.suave {
+  color: var(--color-texto-suave);
+}
+
+.boton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 38px;
+  padding: 0 14px;
+  border: 1px solid var(--color-borde);
+  border-radius: var(--radio-chico);
+  background: var(--color-superficie);
+  color: var(--color-texto);
+  font: inherit;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.boton:hover {
+  border-color: var(--color-primario);
+}
+
+.boton:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.boton--primario {
+  background: var(--color-primario);
+  border-color: var(--color-primario);
+  color: #fff;
+}
+
+.boton--primario:hover:not(:disabled) {
+  background: var(--color-primario-hover);
+}
+
+.boton--peligro {
+  color: var(--tono-error-texto);
+  border-color: var(--tono-error-fondo);
+}
+
+.boton--chico {
+  min-height: 30px;
+  padding: 0 10px;
+  font-size: 0.875rem;
+}
+
+.formulario {
+  display: grid;
+  gap: 14px;
+}
+
+.campo {
+  display: grid;
+  gap: 4px;
+}
+
+.campo > span {
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.campo small {
+  color: var(--color-texto-suave);
+}
+
+input,
+select,
+textarea {
+  width: 100%;
+  min-height: 38px;
+  padding: 8px 10px;
+  border: 1px solid var(--color-borde);
+  border-radius: var(--radio-chico);
+  background: var(--color-superficie);
+  color: var(--color-texto);
+  font: inherit;
+}
+
+input[type='checkbox'],
+input[type='radio'] {
+  width: auto;
+  min-height: 0;
+}
+
+textarea {
+  min-height: 90px;
+  resize: vertical;
+}
+
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+.boton:focus-visible,
+a:focus-visible {
+  outline: 2px solid var(--color-primario);
+  outline-offset: 2px;
+}
+
+.tabla-contenedor {
+  overflow-x: auto;
+}
+
+.tabla {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.925rem;
+}
+
+.tabla th,
+.tabla td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--color-borde);
+  text-align: left;
+  vertical-align: middle;
+}
+
+.tabla th {
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--color-texto-suave);
+}
+
+.tabla tbody tr:hover {
+  background: var(--color-superficie-2);
+}
+
+.vacio {
+  padding: 24px;
+  text-align: center;
+  color: var(--color-texto-suave);
+}
+
+.lista-plana {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.dato {
+  display: grid;
+  grid-template-columns: minmax(140px, 35%) 1fr;
+  gap: 8px;
+  padding: 6px 0;
+  border-bottom: 1px dashed var(--color-borde);
+}
+
+.dato dt {
+  color: var(--color-texto-suave);
+}
+
+.dato dd {
+  margin: 0;
+  font-weight: 600;
+}
+
+.monto {
+  font-variant-numeric: tabular-nums;
+}
+
+.mapa {
+  height: 360px;
+  border-radius: var(--radio);
+  border: 1px solid var(--color-borde);
+  z-index: 0;
+}
+
+@media (max-width: 640px) {
+  .tarjeta {
+    padding: 14px;
+  }
+
+  .dato {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+
+  .mapa {
+    height: 280px;
+  }
+}

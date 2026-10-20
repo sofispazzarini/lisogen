@@ -66,3 +66,13 @@ Regla de precedencia: **Escenarios + `schema.sql`** > Glosario LEL > prototipo. 
 - **T16 · Scheduler en el proceso de la API.** APScheduler arranca en el `lifespan` de FastAPI (salvo con `SCHEDULER_ACTIVO=false` o `ENTORNO=test`). Las tareas usan `FOR UPDATE SKIP LOCKED`, así que dos instancias no procesan lo mismo; igual, con varias réplicas conviene correrlo en un proceso aparte.
 - **T17 · Bandeja de salida de mails.** Los avisos se envían por mail desde la tabla `notificacion` (canal MAIL, `enviada_at` vacío), en lotes de 50 cada 15 segundos. Si el SMTP falla, el aviso queda pendiente y se reintenta; el `integracion_log` registra la falla. Los mails con secretos (credenciales, código de verificación) no pasan por la bandeja: se envían después del commit (T12).
 - **T18 · FedEx simulado.** Con `INTEGRACIONES_MODO=mock`, la tarea `fedex` hace lo que haría FedEx: llama a la confirmación del Lote cuando llega la hora programada.
+
+## 5. Frontend
+
+- **F1 · Tokens en sessionStorage.** El access y el refresh viven en `sessionStorage` (se borran al cerrar la pestaña). El identificador de dispositivo usa `localStorage` para que el mismo navegador no pida código de verificación cada vez (E7). Todos los accesos van con try/catch: si el almacenamiento está bloqueado, la sesión queda en memoria.
+- **F2 · Renovación automática.** Ante un 401, el cliente HTTP renueva el access token una sola vez con el refresh y reintenta. Si no puede, cierra la sesión y vuelve al ingreso, recordando la ruta.
+- **F3 · Hora Argentina fija.** Las fechas se muestran en `America/Argentina/Buenos_Aires`. El retiro de FedEx y el vencimiento de Cupones se envían con offset `-03:00` (Argentina no tiene horario de verano).
+- **F4 · Cliente tipado.** `frontend/src/api/schema.d.ts` se genera desde `backend/openapi.json` (`make api-tipos`). Ambos se versionan para que el CI del front no dependa del backend.
+- **F5 · Sin HTML de datos.** Los popups del mapa se arman con nodos de texto y las vistas sólo interpolan texto, así un dato cargado por un usuario nunca se interpreta como HTML.
+- **F6 · Front en docker-compose.** El servicio `web` corre el servidor de desarrollo de Vite (demo local). Para producción: `npm run build` y servir `dist/` detrás del mismo dominio de la API.
+- **F7 · Tomar Muestra.** No tiene vista, igual que no tiene endpoint (C6). Las Muestras del seed y de los tests se registran con el servicio.
