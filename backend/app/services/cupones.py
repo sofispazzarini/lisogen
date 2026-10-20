@@ -6,13 +6,15 @@ from sqlalchemy import ColumnElement, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
-from app.domain.enums import EstadoCupon, RolUsuario, TipoArchivo
+from app.domain.enums import EstadoCupon, EstadoEstudio, ModalidadPago, RolUsuario, TipoArchivo
 from app.domain.errores import Conflicto, ErrorNegocio, NoEncontrado
-from app.domain.reglas import avanzar_cupon, cupon_vencido
+from app.domain.reglas import avanzar_cupon, calcular_presupuesto, cupon_vencido
+from app.integrations.mock import leer_codigo_de_pdf_cupon
 from app.integrations.registro import Integraciones
-from app.models import Cupon, Paciente, ProfesionalMedico, Usuario
+from app.models import Cupon, Estudio, Paciente, ProfesionalMedico, Usuario
 from app.schemas.roles import CuponSalida, MedicoSalida
 from app.services.comun import ahora, guardar_archivo, notificar, url_archivo
+from app.services.finanzas import presupuesto_de
 from app.services.pacientes import paciente_del_medico
 
 MedicoU = aliased(Usuario)
@@ -163,3 +165,68 @@ async def asignar_a_paciente(session: AsyncSession, medico: Usuario, cupon_id: i
             f"Tu Médico Tratante te asignó un Cupón del {cupon.descuento_pct}%. "
             "Aplicalo al pagar tu Presupuesto.",
         )
+
+
+# --- Paciente ---------------------------------------------------------------------------------
+
+
+async def del_paciente(session: AsyncSession, ints: Integraciones, paciente: Paciente) -> list[CuponSalida]:
+    return await _salida(
+        session,
+        ints,
+        [Cupon.paciente_asignado_id == paciente.id, Cupon.estado == EstadoCupon.ASIGNADO_PACIENTE],
+    )
+
+
+async def aplicar(
+    session: AsyncSession,
+    ints: Integraciones,
+    paciente: Paciente,
+    estudio: Estudio,
+    codigo: str | None,
+    pdf: bytes | None,
+) -> None:
+    """E9: valida el Cupón con el módulo, aplica el % sobre lo que paga el Paciente y lo marca usado.
+    SUPUESTO S6: si no es válido se rechaza (422) y el Presupuesto mantiene el precio original."""
+    if estudio.estado not in (EstadoEstudio.POR_PAGAR, EstadoEstudio.PENDIENTE_AUTORIZACION):
+        raise Conflicto("ESTUDIO_NO_POR_PAGAR", "Sólo se aplica un Cupón antes de pagar el Presupuesto.")
+    if pdf is not None and not codigo:
+        codigo = leer_codigo_de_pdf_cupon(pdf)
+        if codigo is None:
+            raise ErrorNegocio("CUPON_INVALIDO", "No pudimos leer el QR del PDF. Probá ingresando el código.")
+    if not codigo:
+        raise ErrorNegocio("CUPON_INVALIDO", "Ingresá el código del Cupón o subí el PDF con el QR.")
+    p = await presupuesto_de(session, estudio)
+    if p.cupon_id is not None:
+        raise Conflicto("PRESUPUESTO_CON_CUPON", "El Presupuesto ya tiene un Cupón aplicado.")
+    if p.modalidad == ModalidadPago.OBRA_SOCIAL:
+        raise ErrorNegocio(
+            "CUPON_NO_APLICA", "La Obra Social cubre el 100%: no hay monto sobre el cual aplicar el Cupón."
+        )
+    cupon = await session.scalar(
+        select(Cupon).where(Cupon.codigo == codigo.strip().upper()).with_for_update()
+    )
+    ints_e = ints.para_estudio(estudio.id)
+    if cupon is None or cupon.paciente_asignado_id != paciente.id:
+        raise ErrorNegocio("CUPON_INVALIDO", "El Cupón no es válido.")
+    if cupon.estado == EstadoCupon.USADO:
+        raise ErrorNegocio("CUPON_USADO", "El Cupón ya fue usado.")
+    if not await ints_e.cupones.validar(codigo=cupon.codigo):
+        raise ErrorNegocio("CUPON_INVALIDO", "El módulo de cupones informó que el Cupón no es válido.")
+    try:
+        avanzar_cupon(cupon.estado, EstadoCupon.USADO, cupon.vence_at, ahora())
+    except Conflicto as e:
+        raise ErrorNegocio(e.code, e.message) from e
+    calculo = calcular_presupuesto(
+        p.cantidad_genes,
+        p.obra_social_id is not None,
+        p.cobertura_pct,
+        descuento_cupon_pct=cupon.descuento_pct,
+    )
+    p.cupon_id, p.descuento_cupon_usd, p.monto_a_pagar_usd = (
+        cupon.id,
+        calculo.descuento_cupon_usd,
+        calculo.monto_a_pagar_usd,
+    )
+    cupon.estado, cupon.usado_at = EstadoCupon.USADO, ahora()
+    await ints_e.cupones.marcar_usado(codigo=cupon.codigo)
