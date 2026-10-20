@@ -4,7 +4,7 @@ Sistema de gestión de Estudios de exoma clínico para cinco Patologías lisosom
 
 **Stack:** PostgreSQL 16 · FastAPI · Vue 3
 
-> 🚧 En construcción. Etapa actual: **2 · Auth y roles**.
+> 🚧 En construcción. Etapa actual: **3 · Dominio y máquina de estados**.
 
 ## Levantarlo
 
