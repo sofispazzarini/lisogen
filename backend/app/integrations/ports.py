@@ -86,8 +86,11 @@ class ChatbotPort(Protocol):
 
 
 class MailPort(Protocol):
-    async def enviar(self, *, destinatario: str, asunto: str, cuerpo: str) -> None: ...
-
+    async def enviar(
+        self, *, destinatario: str, asunto: str, cuerpo: str, clave: str | None = None
+    ) -> None:
+        """`clave` identifica el aviso para reintentar sin duplicar (API de Notificaciones)."""
+        ...
 
 class StoragePort(Protocol):
     """MinIO privado. Nunca se exponen claves: sólo URLs firmadas de corta duración."""

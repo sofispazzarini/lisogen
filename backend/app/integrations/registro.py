@@ -2,6 +2,7 @@
 sin datos personales: se omiten destinatarios, textos libres y contenidos binarios."""
 
 import time
+from app.integrations.mail_api import MailApi
 from collections.abc import Callable
 from dataclasses import asdict, is_dataclass
 from datetime import date, datetime
@@ -105,6 +106,10 @@ class _Registrado:
 
         return llamar
 
+def _crear_mail(settings: Settings) -> MailPort:
+    if settings.mail_modo == "api":
+        return MailApi(settings, demo=MailSmtp(settings))
+    return MailSmtp(settings) if settings.mail_modo == "smtp" else MailMemoria()
 
 class Adaptadores:
     """Instancias sin estado de sesión (se crean una vez por proceso)."""
@@ -118,7 +123,7 @@ class Adaptadores:
         self.ministerio: MinisterioSaludPort = mock.MinisterioSaludMock()
         self.rutas: OptimizacionRutasPort = mock.OptimizacionRutasMock()
         self.chatbot: ChatbotPort = mock.ChatbotMock()
-        self.mail: MailPort = MailSmtp(settings) if settings.mail_modo == "smtp" else MailMemoria()
+        self.mail: MailPort = _crear_mail(settings)
         self.storage: StoragePort = (
             StorageMinio(settings) if settings.storage_modo == "minio" else StorageMemoria()
         )
