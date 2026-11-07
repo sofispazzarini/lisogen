@@ -74,3 +74,4 @@ class MailApi:
             "destinatarios": [{"canal": "email", "destino": destinatario}],
         }
         await asyncio.to_thread(self._post, clave, datos)
+        

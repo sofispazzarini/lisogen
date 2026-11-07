@@ -2,7 +2,6 @@
 sin datos personales: se omiten destinatarios, textos libres y contenidos binarios."""
 
 import time
-from app.integrations.mail_api import MailApi
 from collections.abc import Callable
 from dataclasses import asdict, is_dataclass
 from datetime import date, datetime
@@ -16,6 +15,7 @@ from app.config import Settings, get_settings
 from app.domain.enums import ServicioExterno
 from app.integrations import mock
 from app.integrations.infra import MailMemoria, MailSmtp, StorageMemoria, StorageMinio
+from app.integrations.mail_api import MailApi
 from app.integrations.ports import (
     BioinformaticaPort,
     ChatbotPort,
