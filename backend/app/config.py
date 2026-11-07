@@ -27,7 +27,7 @@ class Settings(BaseSettings):
     mail_modo: Literal["smtp", "memoria", "api"] = "smtp"
     mail_api_url: str = ""
     mail_api_key: str = ""
-    mail_dominio_demo: str = "lisogen-demo.com.ar"  
+    mail_dominio_demo: str = "lisogen-demo.com.ar"
     smtp_host: str = "localhost"
     smtp_port: int = 1025
     mail_remitente: str = "LisoGen <no-responder@lisogen-demo.com.ar>"
