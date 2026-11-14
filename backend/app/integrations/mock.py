@@ -5,6 +5,7 @@ import math
 import re
 import secrets
 import unicodedata
+import uuid
 from datetime import datetime
 from decimal import Decimal
 from typing import Final
@@ -19,6 +20,7 @@ from app.integrations.ports import (
     FamiliarExterno,
     Parada,
     Punto,
+    RespuestaChat,
     VarianteExterna,
 )
 from app.models import SnomedConcepto
@@ -47,8 +49,6 @@ VARIANTES_CONOCIDAS: Final = {
 }
 
 COBERTURAS: Final = {"OSPS": Decimal(100), "ANDINA": Decimal(70), "FEDERAL": Decimal(50)}
-
-MARCA_CUPON: Final = "LISOGEN-CUPON:"
 
 
 def _h(texto: str) -> int:
@@ -128,42 +128,22 @@ class SnomedCacheLocal:
 
 
 class CuponesMock:
-    """Genera Cupones con PDF/QR. Con `sin_qr` simula la excepción de E32 (sólo código numérico)."""
+    """Cupones sin red: códigos hexadecimales de 8 caracteres, como los de la API real.
 
-    def __init__(self, sin_qr: bool = False) -> None:
-        self._sin_qr = sin_qr
+    No guarda estado: las reglas de la API (un Cupón por Paciente, vencimiento a 30 días) las simulan
+    los tests con adaptadores propios cuando hace falta."""
 
-    async def generar(self, *, descuento_pct: int, cantidad: int) -> list[CuponExterno]:
-        cupones = []
-        for _ in range(cantidad):
-            if self._sin_qr:
-                cupones.append(CuponExterno(f"{secrets.randbelow(10**10):010d}", None))
-                continue
-            codigo = f"LG{descuento_pct:02d}-{secrets.token_hex(4).upper()}"
-            pdf = generar_pdf(
-                "Cupón de descuento LisoGen",
-                [
-                    f"Descuento: {descuento_pct}% sobre lo que paga el Paciente.",
-                    f"Código: {codigo}",
-                    "",
-                    f"QR: {MARCA_CUPON}{codigo}",
-                    "Presentalo al pagar el Presupuesto de tu Estudio. Uso único.",
-                ],
-            )
-            cupones.append(CuponExterno(codigo, pdf))
-        return cupones
+    async def generar(self, *, gerente_id: int, descuento_pct: int, cantidad: int) -> list[CuponExterno]:
+        return [CuponExterno(secrets.token_hex(4)) for _ in range(cantidad)]
 
-    async def validar(self, *, codigo: str) -> bool:
-        return bool(re.fullmatch(r"LG\d{2}-[0-9A-F]{8}|\d{10}", codigo))
-
-    async def marcar_usado(self, *, codigo: str) -> None:
+    async def asignar_a_medico(self, *, gerente_id: int, medico_id: int, codigo: str) -> None:
         return None
 
+    async def asignar_a_paciente(self, *, medico_id: int, paciente_id: int, codigo: str) -> None:
+        return None
 
-def leer_codigo_de_pdf_cupon(contenido: bytes) -> str | None:
-    """Lectura simulada del QR: el PDF del módulo de cupones embebe el código tras la marca."""
-    m = re.search(re.escape(MARCA_CUPON).encode() + rb"([A-Z0-9-]{6,20})", contenido)
-    return m.group(1).decode() if m else None
+    async def canjear(self, *, paciente_id: int, codigo: str) -> None:
+        return None
 
 
 class FedexMock:
@@ -193,7 +173,9 @@ def _distancia(a: Punto, b: Punto) -> float:
 class OptimizacionRutasMock:
     """Vecino más cercano desde el origen; empates por id. Determinístico."""
 
-    async def ordenar_paradas(self, *, origen: Punto, paradas: list[Parada]) -> list[int]:
+    async def ordenar_paradas(
+        self, *, origen: Punto, paradas: list[Parada], destino: Punto | None = None
+    ) -> list[int]:
         pendientes = sorted(paradas, key=lambda p: p.id)
         actual, orden = origen, []
         while pendientes:
@@ -236,16 +218,23 @@ _ALIAS: Final = {"mps 1": "mps", "mucopolisacaridosis": "mps", "niemann": "asmd"
 class ChatbotMock:
     """Responde sólo sobre las cinco Patologías y el proceso del Estudio. No deriva a una persona (E14)."""
 
-    async def responder(self, *, pregunta: str) -> str:
+    async def responder(self, *, pregunta: str, conversacion_id: str | None = None) -> RespuestaChat:
         p = _normalizar(pregunta)
         claves = [k for k in _RESPUESTAS if k in p] + [v for a, v in _ALIAS.items() if a in p]
+        tipo = "respuesta"
         if claves:
             vistas = list(dict.fromkeys(claves))
             texto = " ".join(_RESPUESTAS[k] for k in vistas[:2])
         else:
+            tipo = "fuera_de_alcance"
             texto = (
                 "Puedo responder dudas sobre las cinco Patologías que estudia LisoGen: Fabry, Pompe, MPS 1, "
                 "Gaucher y ASMD, y sobre cómo sigue tu Estudio. Probá preguntarme, por ejemplo, "
                 '"¿qué es la enfermedad de Gaucher?".'
             )
-        return f"{texto}\n\nEsta información es general y no reemplaza la consulta con tu Médico Tratante."
+        aviso = "Esta información es general y no reemplaza la consulta con tu Médico Tratante."
+        return RespuestaChat(
+            respuesta=f"{texto}\n\n{aviso}",
+            conversacion_id=conversacion_id or f"mock-{uuid.uuid4()}",
+            tipo=tipo,
+        )

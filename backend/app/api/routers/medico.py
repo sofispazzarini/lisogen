@@ -171,8 +171,10 @@ async def mis_cupones(medico: Medico, session: Sesion, ints: Ints) -> list[Cupon
 
 
 @router.post("/cupones/{cupon_id}/asignar", response_model=Ok, summary="Asignar Cupón a Paciente (E5)")
-async def asignar_cupon(cupon_id: int, datos: AsignarCuponEntrada, medico: Medico, session: Sesion) -> Ok:
-    await cupones.asignar_a_paciente(session, medico, cupon_id, datos.paciente_id)
+async def asignar_cupon(
+    cupon_id: int, datos: AsignarCuponEntrada, medico: Medico, session: Sesion, ints: Ints
+) -> Ok:
+    await cupones.asignar_a_paciente(session, ints, medico, cupon_id, datos.paciente_id)
     return Ok()
 
 

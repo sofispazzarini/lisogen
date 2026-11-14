@@ -24,7 +24,7 @@ class MailSmtp:
     def __init__(self, settings: Settings) -> None:
         self._s = settings
 
-    async def enviar(self, *, destinatario: str, asunto: str, cuerpo: str) -> None:
+    async def enviar(self, *, destinatario: str, asunto: str, cuerpo: str, clave: str | None = None) -> None:
         msg = EmailMessage()
         msg["From"] = self._s.mail_remitente
         msg["To"] = destinatario
@@ -37,9 +37,9 @@ class MailSmtp:
 class MailMemoria:
     enviados: list[MailEnviado] = field(default_factory=list)
 
-    async def enviar(self, *, destinatario: str, asunto: str, cuerpo: str) -> None:
+    async def enviar(self, *, destinatario: str, asunto: str, cuerpo: str, clave: str | None = None
+    ) -> None:
         self.enviados.append(MailEnviado(destinatario, asunto, cuerpo))
-
 
 class StorageMinio:
     def __init__(self, settings: Settings) -> None:

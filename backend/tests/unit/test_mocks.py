@@ -94,22 +94,14 @@ async def test_fedex_tracking_determinístico() -> None:
 # --- Cupones ----------------------------------------------------------------------------------
 
 
-async def test_cupones_con_qr_y_lectura_del_pdf() -> None:
+async def test_cupones_mock_devuelve_codigos_como_los_de_la_api() -> None:
     api = mock.CuponesMock()
-    cupones = await api.generar(descuento_pct=15, cantidad=3)
+    cupones = await api.generar(gerente_id=1, descuento_pct=15, cantidad=3)
     assert len({c.codigo for c in cupones}) == 3
-    for c in cupones:
-        assert re.fullmatch(r"LG15-[0-9A-F]{8}", c.codigo) and c.qr_pdf is not None
-        assert mock.leer_codigo_de_pdf_cupon(c.qr_pdf) == c.codigo
-        assert await api.validar(codigo=c.codigo)
-    assert mock.leer_codigo_de_pdf_cupon(generar_pdf("Otro", ["sin código"])) is None
-
-
-async def test_cupones_sin_qr_usan_codigo_numerico() -> None:
-    cupones = await mock.CuponesMock(sin_qr=True).generar(descuento_pct=10, cantidad=2)
-    assert all(c.qr_pdf is None and re.fullmatch(r"\d{10}", c.codigo) for c in cupones)
-    assert await mock.CuponesMock().validar(codigo=cupones[0].codigo)
-    assert not await mock.CuponesMock().validar(codigo="CUALQUIERA")
+    assert all(re.fullmatch(r"[0-9a-f]{8}", c.codigo) for c in cupones)
+    assert await api.asignar_a_medico(gerente_id=1, medico_id=2, codigo=cupones[0].codigo) is None
+    assert await api.asignar_a_paciente(medico_id=2, paciente_id=3, codigo=cupones[0].codigo) is None
+    assert await api.canjear(paciente_id=3, codigo=cupones[0].codigo) is None
 
 
 # --- Optimización de recorridos ---------------------------------------------------------------
@@ -147,15 +139,25 @@ async def test_rutas_vecino_mas_cercano() -> None:
     ],
 )
 async def test_chatbot_responde_sobre_las_patologias(pregunta: str, esperado: str) -> None:
-    respuesta = await mock.ChatbotMock().responder(pregunta=pregunta)
-    assert esperado in respuesta
-    assert "no reemplaza la consulta con tu Médico Tratante" in respuesta
+    r = await mock.ChatbotMock().responder(pregunta=pregunta)
+    assert esperado in r.respuesta
+    assert r.tipo == "respuesta"
+    assert "no reemplaza la consulta con tu Médico Tratante" in r.respuesta
 
 
 async def test_chatbot_no_deriva_a_una_persona() -> None:
-    respuesta = await mock.ChatbotMock().responder(pregunta="Pasame con un humano")
-    assert "Fabry, Pompe, MPS 1, Gaucher y ASMD" in respuesta
-    assert "derivo" not in respuesta.lower() and "operador" not in respuesta.lower()
+    r = await mock.ChatbotMock().responder(pregunta="Pasame con un humano")
+    assert "Fabry, Pompe, MPS 1, Gaucher y ASMD" in r.respuesta
+    assert r.tipo == "fuera_de_alcance"
+    assert "derivo" not in r.respuesta.lower() and "operador" not in r.respuesta.lower()
+
+
+async def test_chatbot_mantiene_la_conversacion() -> None:
+    bot = mock.ChatbotMock()
+    primera = await bot.responder(pregunta="¿Qué es Fabry?")
+    assert primera.conversacion_id
+    segunda = await bot.responder(pregunta="¿y Pompe?", conversacion_id=primera.conversacion_id)
+    assert segunda.conversacion_id == primera.conversacion_id
 
 
 # --- Infra en memoria y PDF -------------------------------------------------------------------

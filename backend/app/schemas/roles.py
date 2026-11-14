@@ -173,7 +173,11 @@ class AgendaDia(Esquema):
 
 
 class ChatEntrada(Esquema):
-    pregunta: str = Field(min_length=1, max_length=500)
+    """El Chatbot acepta de 1 a 1000 caracteres, sin datos personales. `conversacion_id` es el que
+    devolvió la respuesta anterior; sin él se abre una conversación nueva."""
+
+    pregunta: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=1000)]
+    conversacion_id: str | None = Field(default=None, max_length=200)
 
 
 class ChatMensajeSalida(Esquema):
@@ -181,6 +185,8 @@ class ChatMensajeSalida(Esquema):
     pregunta: str
     respuesta: str | None
     created_at: datetime
+    conversacion_id: str | None = None
+    tipo: str | None = None
 
 
 # --- Administrativo (E16–E22) -----------------------------------------------------------------
@@ -284,11 +290,21 @@ class ParadaSalida(Esquema):
     recogido_at: datetime | None
 
 
+class DestinoSalida(Esquema):
+    """Destino del recorrido: el Laboratorio Central, donde terminan todas las Órdenes del Día."""
+
+    nombre: str
+    direccion: str
+    latitud: Decimal
+    longitud: Decimal
+
+
 class OrdenDelDiaSalida(Esquema):
     id: int
     fecha: date
     provincia: str
     paradas: list[ParadaSalida]
+    destino: DestinoSalida
     muestras_en_camino: int
     llegada_lab_at: datetime | None
 
@@ -347,7 +363,6 @@ class PatologiaEntrada(Esquema):
 class GenerarCuponesEntrada(Esquema):
     descuento_pct: int = Field(ge=1, le=100)
     cantidad: int = Field(ge=1, le=100)
-    vence_at: datetime | None = None
 
 
 class AsignarCuponesEntrada(Esquema):

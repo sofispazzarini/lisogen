@@ -11,22 +11,18 @@ const medicos = usarCarga(() => ok(api.GET('/gerente/medicos')))
 const generacion = usarAccion()
 const asignacion = usarAccion()
 
-const nuevo = reactive({ descuento_pct: 20, cantidad: 5, vence: '' })
+const nuevo = reactive({ descuento_pct: 20, cantidad: 5 })
 const seleccion = ref<number[]>([])
 const medicoId = ref<number | null>(null)
 const disponibles = computed(() => (cupones.datos.value ?? []).filter((c) => c.estado === 'DISPONIBLE'))
 
-/** E32: el módulo de cupones genera los códigos (PDF con QR o, si falla, código numérico). */
+/** E32: la API de Cupones genera los códigos (vencen a los 30 días) y LisoGen arma el PDF con QR. */
 async function generar(): Promise<void> {
   const r = await generacion.ejecutar(
     () =>
       ok(
         api.POST('/gerente/cupones', {
-          body: {
-            descuento_pct: nuevo.descuento_pct,
-            cantidad: nuevo.cantidad,
-            vence_at: nuevo.vence ? `${nuevo.vence}T23:59:59-03:00` : null,
-          },
+          body: { descuento_pct: nuevo.descuento_pct, cantidad: nuevo.cantidad },
         }),
       ),
     'Cupones generados.',
@@ -63,7 +59,7 @@ async function asignar(): Promise<void> {
           <label class="campo"><span>Descuento (%)</span><input v-model.number="nuevo.descuento_pct" type="number" min="1" max="100" required /></label>
           <label class="campo"><span>Cantidad</span><input v-model.number="nuevo.cantidad" type="number" min="1" max="100" required /></label>
         </div>
-        <label class="campo"><span>Vencimiento (opcional)</span><input v-model="nuevo.vence" type="date" /></label>
+        <p class="suave">Los Cupones vencen a los 30 días de generados.</p>
         <Alerta v-if="generacion.error.value" tipo="error">{{ generacion.error.value }}</Alerta>
         <Alerta v-if="generacion.exito.value" tipo="exito">{{ generacion.exito.value }}</Alerta>
         <button class="boton boton--primario" type="submit" :disabled="generacion.enCurso.value">Generar</button>
@@ -99,7 +95,7 @@ async function asignar(): Promise<void> {
                 <td>{{ c.medico ?? '—' }}</td>
                 <td>{{ c.paciente ?? '—' }}</td>
                 <td>{{ c.vence_at ? fecha(c.vence_at) : '—' }}</td>
-                <td><a v-if="c.qr_url" :href="c.qr_url" target="_blank" rel="noopener">PDF</a><span v-else class="suave">Código numérico</span></td>
+                <td><a v-if="c.qr_url" :href="c.qr_url" target="_blank" rel="noopener">PDF</a><span v-else class="suave">—</span></td>
               </tr>
             </tbody>
           </table>

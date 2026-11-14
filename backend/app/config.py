@@ -21,10 +21,23 @@ class Settings(BaseSettings):
 
     # Integraciones: "mock" es el único modo implementado (DECISIONES T6)
     integraciones_modo: Literal["mock"] = "mock"
-    mock_cupones_sin_qr: bool = False
+
+    # Cupones (API de Exoma Care): la clave es del grupo; va en .env, nunca en el repositorio
+    cupones_modo: Literal["mock", "api"] = "mock"
+    cupones_api_url: str = "https://vekuhonbpqtzakqbcoph.supabase.co/functions/v1/cupones-api"
+    cupones_api_key: str = ""
+
+    # Chatbot (GenLab): la apikey y el token van en .env, nunca en el repositorio
+    chatbot_modo: Literal["mock", "api"] = "mock"
+    chatbot_url: str = "https://vglzngsrbyagquqqmakf.supabase.co/functions/v1/chat"
+    chatbot_apikey: str = ""
+    chatbot_token: str = ""
 
     # Mail (Mailpit en local)
-    mail_modo: Literal["smtp", "memoria"] = "smtp"
+    mail_modo: Literal["smtp", "memoria", "api"] = "smtp"
+    mail_api_url: str = ""
+    mail_api_key: str = ""
+    mail_dominio_demo: str = "lisogen-demo.com.ar"
     smtp_host: str = "localhost"
     smtp_port: int = 1025
     mail_remitente: str = "LisoGen <no-responder@lisogen-demo.com.ar>"
@@ -44,9 +57,12 @@ class Settings(BaseSettings):
     rate_limit_intentos: int = 5
     rate_limit_ventana_seg: int = 300
 
-    # Laboratorio Central (origen de recorridos y ubicación de Muestras en el laboratorio)
-    lab_central_lat: Decimal = Decimal("-34.603722")
-    lab_central_lon: Decimal = Decimal("-58.381592")
+
+    # Laboratorio Central: calle 62 N° 555, La Plata
+    lab_central_lat: Decimal = Decimal("-34.919223")
+    lab_central_lon: Decimal = Decimal("-57.942838")
+    rutas_modo: Literal["mock", "api"] = "mock"
+    rutas_api_url: str = "https://optimizacionapi.vercel.app/api/optimizacion"
 
     scheduler_activo: bool = True
 
