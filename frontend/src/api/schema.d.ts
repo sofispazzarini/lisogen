@@ -1600,8 +1600,6 @@ export interface components {
             cantidad: number;
             /** Descuento Pct */
             descuento_pct: number;
-            /** Vence At */
-            vence_at?: string | null;
         };
         /** GenesSugeridos */
         GenesSugeridos: {

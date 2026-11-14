@@ -30,7 +30,18 @@ class ConceptoSnomed:
 @dataclass(frozen=True)
 class CuponExterno:
     codigo: str
-    qr_pdf: bytes | None  # None: el módulo no generó QR y entregó sólo el código numérico (E32)
+
+
+class ErrorCupones(Exception):
+    """La API de Cupones rechazó el pedido o no respondió.
+
+    `status`: código HTTP (0 si no hubo respuesta). `incierto`: no hubo respuesta (timeout, 5xx), así que
+    la operación pudo haberse aplicado igual; hay que consultar `GET /cupones` antes de repetirla."""
+
+    def __init__(self, mensaje: str, *, status: int = 0, incierto: bool = False) -> None:
+        super().__init__(mensaje)
+        self.status = status
+        self.incierto = incierto
 
 
 @dataclass(frozen=True)
@@ -64,9 +75,12 @@ class SnomedPort(Protocol):
 
 
 class CuponesPort(Protocol):
-    async def generar(self, *, descuento_pct: int, cantidad: int) -> list[CuponExterno]: ...
-    async def validar(self, *, codigo: str) -> bool: ...
-    async def marcar_usado(self, *, codigo: str) -> None: ...
+    """API de Cupones de Exoma Care: generar → asignar al médico → asignar al paciente → canjear."""
+
+    async def generar(self, *, gerente_id: int, descuento_pct: int, cantidad: int) -> list[CuponExterno]: ...
+    async def asignar_a_medico(self, *, gerente_id: int, medico_id: int, codigo: str) -> None: ...
+    async def asignar_a_paciente(self, *, medico_id: int, paciente_id: int, codigo: str) -> None: ...
+    async def canjear(self, *, paciente_id: int, codigo: str) -> None: ...
 
 
 class FedexPort(Protocol):
@@ -104,3 +118,4 @@ class StoragePort(Protocol):
     async def guardar(self, *, clave: str, contenido: bytes, mime: str) -> None: ...
     async def leer(self, *, clave: str) -> bytes: ...
     async def url_firmada(self, *, clave: str, nombre_descarga: str) -> str: ...
+    

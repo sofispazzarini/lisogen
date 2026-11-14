@@ -21,7 +21,11 @@ class Settings(BaseSettings):
 
     # Integraciones: "mock" es el único modo implementado (DECISIONES T6)
     integraciones_modo: Literal["mock"] = "mock"
-    mock_cupones_sin_qr: bool = False
+
+    # Cupones (API de Exoma Care): la clave es del grupo; va en .env, nunca en el repositorio
+    cupones_modo: Literal["mock", "api"] = "mock"
+    cupones_api_url: str = "https://vekuhonbpqtzakqbcoph.supabase.co/functions/v1/cupones-api"
+    cupones_api_key: str = ""
 
     # Mail (Mailpit en local)
     mail_modo: Literal["smtp", "memoria", "api"] = "smtp"
@@ -46,7 +50,7 @@ class Settings(BaseSettings):
     verificar_dispositivo: bool = True
     rate_limit_intentos: int = 5
     rate_limit_ventana_seg: int = 300
-
+    
 
     # Laboratorio Central: calle 62 N° 555, La Plata
     lab_central_lat: Decimal = Decimal("-34.919223")

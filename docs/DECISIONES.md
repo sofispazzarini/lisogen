@@ -66,7 +66,7 @@ Regla de precedencia: **Escenarios + `schema.sql`** > Glosario LEL > prototipo. 
 - **T16 · Scheduler en el proceso de la API.** APScheduler arranca en el `lifespan` de FastAPI (salvo con `SCHEDULER_ACTIVO=false` o `ENTORNO=test`). Las tareas usan `FOR UPDATE SKIP LOCKED`, así que dos instancias no procesan lo mismo; igual, con varias réplicas conviene correrlo en un proceso aparte.
 - **T17 · Bandeja de salida de mails.** Los avisos se envían por mail desde la tabla `notificacion` (canal MAIL, `enviada_at` vacío), en lotes de 50 cada 15 segundos. Si el SMTP falla, el aviso queda pendiente y se reintenta; el `integracion_log` registra la falla. Los mails con secretos (credenciales, código de verificación) no pasan por la bandeja: se envían después del commit (T12).
 - **T18 · FedEx simulado.** Con `INTEGRACIONES_MODO=mock`, la tarea `fedex` hace lo que haría FedEx: llama a la confirmación del Lote cuando llega la hora programada.
-
+- **T19 · Dependencias de integración.** `requests` para los adaptadores HTTP de mail, rutas y cupones (corre en un hilo con `asyncio.to_thread`) y `segno` para dibujar el QR del Cupón. Los tests de los adaptadores usan un servidor HTTP local que imita cada API y nunca llaman a las reales; `conftest.py` fuerza los modos `mock`.
 ## 5. Frontend
 
 - **F1 · Tokens en sessionStorage.** El access y el refresh viven en `sessionStorage` (se borran al cerrar la pestaña). El identificador de dispositivo usa `localStorage` para que el mismo navegador no pida código de verificación cada vez (E7). Todos los accesos van con try/catch: si el almacenamiento está bloqueado, la sesión queda en memoria.
@@ -77,7 +77,12 @@ Regla de precedencia: **Escenarios + `schema.sql`** > Glosario LEL > prototipo. 
 - **F6 · Front en docker-compose.** El servicio `web` corre el servidor de desarrollo de Vite (demo local). Para producción: `npm run build` y servir `dist/` detrás del mismo dominio de la API.
 - **F7 · Tomar Muestra.** No tiene vista, igual que no tiene endpoint (C6). Las Muestras del seed y de los tests se registran con el servicio.
 
-El recorrido es abierto: empieza en el centro de menor id y termina en el Laboratorio Central (calle 62 N° 555, La Plata), que se muestra como destino en la Orden del Día.
-El seed suma Belgrano y Recoleta como centros de ejemplo, con coordenadas inventadas.
-Mail: “enviado” significa que la API aceptó el pedido; el id del aviso queda en el log.
-Actualizá T9 y T15, que hablan de 10 centros y 6 estudios.
+- **S26 · Mail "enviado".** Con `MAIL_MODO=api`, "enviado" significa que la API de Notificaciones aceptó el pedido (202). El id del aviso queda en `integracion_log`; no se consulta después `GET /avisos/{id}`, porque haría falta guardar el id en la base. Los mails del código de verificación y de la clave provisoria no se reintentan.
+- **S27 · Un solo Laboratorio Central.** Para todas las provincias hay un único Laboratorio Central (calle 62 N° 555, La Plata), destino de todos los recorridos.
+- **S28 · Centros de ejemplo.** El seed suma los Centros Belgrano y Recoleta (CABA) con coordenadas inventadas, para que la Orden del Día de demo tenga tres paradas.
+- **S29 · Recorrido abierto.** El recorrido empieza en el Centro de Extracción de menor id y termina siempre en el Laboratorio Central, que se muestra como destino en la Orden del Día. La API de Optimización deja fijos el primer y el último punto y ordena los del medio; si falla, se usa el orden del mock.
+- **S30 · Cupones con la API de Exoma Care.** Generar, asignar al médico, asignar al paciente y aplicar (canjear) se hacen primero en la API de Cupones (clave del grupo en `CUPONES_API_KEY`, header `X-API-Key`) y recién después se reflejan en la base de LisoGen: si la API rechaza, nada cambia acá. Los IDs que se envían son los de LisoGen, como texto.
+- **S31 · Vencimiento y reglas de la API de Cupones.** La API vence los Cupones a los 30 días y el Gerente no lo elige; LisoGen guarda esa fecha. Un Paciente sólo puede recibir un Cupón por grupo (409, aun si ya lo usó) y hay un solo Gerente Médico por grupo (403).
+- **S32 · PDF con QR armado por LisoGen.** La API de Cupones sólo entrega el código, no PDF ni QR. LisoGen arma el PDF con el código, el descuento, el vencimiento y un QR (librería `segno`) que codifica `LISOGEN-CUPON:<código>`. Al subir el PDF en E9, el código se lee del texto del PDF; no se decodifica la imagen del QR.
+- **S33 · Errores de la API de Cupones.** 400/404 → 422 `CUPON_INVALIDO`; 409 → 409 `CUPON_CONFLICTO`; 403 → 422 `CUPON_SIN_PERMISO`; timeout o 5xx → 502 `CUPONES_SIN_RESPUESTA`. Los pedidos que modifican datos no se reintentan solos: ante un timeout el Cupón pudo haberse procesado igual.
+- **S34 · Asignación en lote.** Si la API falla a mitad de un lote de asignaciones, los Cupones que ya asignó quedan registrados en LisoGen antes de informar el error, para que las dos bases no se desincronicen.

@@ -357,8 +357,7 @@ class PatologiaEntrada(Esquema):
 class GenerarCuponesEntrada(Esquema):
     descuento_pct: int = Field(ge=1, le=100)
     cantidad: int = Field(ge=1, le=100)
-    vence_at: datetime | None = None
-
+    
 
 class AsignarCuponesEntrada(Esquema):
     cupon_ids: list[int] = Field(min_length=1)
@@ -370,3 +369,4 @@ class MedicoSalida(Esquema):
     nombre_completo: str
     matricula: str
     cupones_disponibles: int
+    

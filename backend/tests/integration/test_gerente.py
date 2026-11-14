@@ -1,7 +1,8 @@
 """`/gerente`: E30 Dar de alta Patología, E31 Modificar Patología, E32 Generar Cupón,
 E33 Asignar Cupón a Médico Tratante."""
 
-from datetime import timedelta
+import re
+from datetime import datetime, timedelta
 from typing import Any
 
 import httpx
@@ -10,12 +11,13 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.domain.enums import RolUsuario, ServicioExterno
-from app.integrations.mock import CuponesMock
+from app.integrations.ports import ErrorCupones
 from app.integrations.registro import Adaptadores
 from app.models import Cupon, IntegracionLog, Notificacion, Patologia, Usuario
 from app.services.comun import ahora
 from tests import factories
 from tests.factories import headers
+from tests.falsos import CuponesFalla
 
 FIEBRE, CEFALEA, FATIGA, ANEMIA = 386661006, 25064002, 84229001, 271737000
 ACROPARESTESIA, ANGIOQUERATOMA, HIPOHIDROSIS, CORNEA = 79256006, 254788004, 45004005, 420805002
@@ -126,7 +128,7 @@ async def test_solo_gerente(cliente: httpx.AsyncClient, demo: dict[RolUsuario, U
 # --- E32 Generar Cupón ------------------------------------------------------------------------
 
 
-async def test_generar_cupones_con_qr(
+async def test_generar_cupones(
     cliente: httpx.AsyncClient, session: AsyncSession, demo: dict[RolUsuario, Usuario]
 ) -> None:
     r = await cliente.post(
@@ -138,27 +140,43 @@ async def test_generar_cupones_con_qr(
     cupones = r.json()
     assert len(cupones) == 3
     assert all(c["estado"] == "DISPONIBLE" and c["descuento_pct"] == 15 for c in cupones)
-    assert all(
-        c["codigo"].startswith("LG15-") and c["qr_url"].startswith("memoria://cupon_pdf/") for c in cupones
-    )
+    assert all(re.fullmatch(r"[0-9a-f]{8}", c["codigo"]) for c in cupones)
+    assert all(c["qr_url"].startswith("memoria://cupon_pdf/") for c in cupones)  # PDF con QR de LisoGen
     assert len({c["codigo"] for c in cupones}) == 3
+    vence = datetime.fromisoformat(cupones[0]["vence_at"])
+    assert timedelta(days=29, hours=23) < vence - ahora() <= timedelta(days=30)  # lo fija la API
     log = await session.scalar(
         select(IntegracionLog).where(IntegracionLog.servicio == ServicioExterno.CUPONES)
     )
-    assert log is not None and log.ok
+    assert log is not None and log.ok and log.operacion == "generar"
 
 
-async def test_generar_cupones_sin_qr_usa_codigo_numerico(
-    cliente: httpx.AsyncClient, adaptadores: Adaptadores, demo: dict[RolUsuario, Usuario]
+@pytest.mark.parametrize(
+    ("error", "estado", "codigo"),
+    [
+        (ErrorCupones("HTTP 403", status=403), 422, "CUPON_SIN_PERMISO"),
+        (ErrorCupones("HTTP 400", status=400), 422, "CUPON_INVALIDO"),
+        (ErrorCupones("sin respuesta", incierto=True), 502, "CUPONES_SIN_RESPUESTA"),
+        (ErrorCupones("HTTP 503", status=503, incierto=True), 502, "CUPONES_SIN_RESPUESTA"),
+    ],
+)
+async def test_generar_cupones_rechazado_por_la_api_no_guarda_nada(
+    cliente: httpx.AsyncClient,
+    session: AsyncSession,
+    adaptadores: Adaptadores,
+    demo: dict[RolUsuario, Usuario],
+    error: ErrorCupones,
+    estado: int,
+    codigo: str,
 ) -> None:
-    """E32 excepción: si el módulo no genera el QR, el Cupón queda con código numérico."""
-    adaptadores.cupones = CuponesMock(sin_qr=True)
+    adaptadores.cupones = CuponesFalla("generar", error)
     r = await cliente.post(
         "/gerente/cupones",
         json={"descuento_pct": 30, "cantidad": 2},
         headers=headers(demo[RolUsuario.GERENTE_MEDICO]),
     )
-    assert all(c["qr_url"] is None and c["codigo"].isdigit() and len(c["codigo"]) == 10 for c in r.json())
+    assert r.status_code == estado and r.json()["code"] == codigo
+    assert await session.scalar(select(func.count()).select_from(Cupon)) == 0
 
 
 @pytest.mark.parametrize(
@@ -174,18 +192,6 @@ async def test_generar_cupones_invalidos(
 ) -> None:
     r = await cliente.post("/gerente/cupones", json=datos, headers=headers(demo[RolUsuario.GERENTE_MEDICO]))
     assert r.status_code == 422
-
-
-async def test_generar_cupones_vencimiento_pasado(
-    cliente: httpx.AsyncClient, demo: dict[RolUsuario, Usuario]
-) -> None:
-    pasado = (ahora() - timedelta(days=1)).isoformat()
-    r = await cliente.post(
-        "/gerente/cupones",
-        json={"descuento_pct": 10, "cantidad": 1, "vence_at": pasado},
-        headers=headers(demo[RolUsuario.GERENTE_MEDICO]),
-    )
-    assert r.json()["code"] == "VENCIMIENTO_INVALIDO"
 
 
 # --- E33 Asignar Cupón a Médico Tratante ------------------------------------------------------
@@ -249,12 +255,9 @@ async def test_cupon_vencido_no_se_asigna(
     cliente: httpx.AsyncClient, session: AsyncSession, demo: dict[RolUsuario, Usuario]
 ) -> None:
     gerente = demo[RolUsuario.GERENTE_MEDICO]
-    vence = (ahora() + timedelta(hours=1)).isoformat()
     cid = (
         await cliente.post(
-            "/gerente/cupones",
-            json={"descuento_pct": 5, "cantidad": 1, "vence_at": vence},
-            headers=headers(gerente),
+            "/gerente/cupones", json={"descuento_pct": 5, "cantidad": 1}, headers=headers(gerente)
         )
     ).json()[0]["id"]
     await session.execute(
@@ -269,3 +272,50 @@ async def test_cupon_vencido_no_se_asigna(
     listado = (await cliente.get("/gerente/cupones", headers=headers(gerente))).json()
     assert next(c for c in listado if c["id"] == cid)["estado"] == "VENCIDO"
     assert await session.scalar(select(func.count()).select_from(Cupon)) == 1
+
+
+async def test_asignar_cupones_si_la_api_falla_a_mitad_quedan_los_ya_asignados(
+    cliente: httpx.AsyncClient,
+    session: AsyncSession,
+    adaptadores: Adaptadores,
+    demo: dict[RolUsuario, Usuario],
+) -> None:
+    """Lo que la API de Cupones ya asignó se confirma acá aunque el siguiente Cupón falle."""
+    gerente, medico = demo[RolUsuario.GERENTE_MEDICO], demo[RolUsuario.MEDICO_TRATANTE]
+    h = headers(gerente)
+    ids = [
+        c["id"]
+        for c in (
+            await cliente.post("/gerente/cupones", json={"descuento_pct": 25, "cantidad": 3}, headers=h)
+        ).json()
+    ]
+    adaptadores.cupones = CuponesFalla("asignar_a_medico", ErrorCupones("HTTP 404", status=404), desde=2)
+    r = await cliente.post(
+        "/gerente/cupones/asignar", json={"cupon_ids": ids, "medico_id": medico.id}, headers=h
+    )
+    assert r.status_code == 422 and r.json()["code"] == "CUPON_INVALIDO"
+    estados = {c["id"]: c["estado"] for c in (await cliente.get("/gerente/cupones", headers=h)).json()}
+    assert sorted(estados.values()) == ["ASIGNADO_MEDICO", "DISPONIBLE", "DISPONIBLE"]
+
+
+async def test_asignar_cupon_a_medico_con_api_sin_respuesta_no_cambia_nada(
+    cliente: httpx.AsyncClient,
+    session: AsyncSession,
+    adaptadores: Adaptadores,
+    demo: dict[RolUsuario, Usuario],
+) -> None:
+    gerente, medico = demo[RolUsuario.GERENTE_MEDICO], demo[RolUsuario.MEDICO_TRATANTE]
+    h = headers(gerente)
+    cid = (
+        await cliente.post("/gerente/cupones", json={"descuento_pct": 5, "cantidad": 1}, headers=h)
+    ).json()[0]["id"]
+    adaptadores.cupones = CuponesFalla("asignar_a_medico", ErrorCupones("timeout", incierto=True))
+    r = await cliente.post(
+        "/gerente/cupones/asignar", json={"cupon_ids": [cid], "medico_id": medico.id}, headers=h
+    )
+    assert r.status_code == 502 and r.json()["code"] == "CUPONES_SIN_RESPUESTA"
+    cupon = await session.get(Cupon, cid)
+    assert cupon is not None
+    await session.refresh(cupon)
+    assert cupon.medico_asignado_id is None
+    

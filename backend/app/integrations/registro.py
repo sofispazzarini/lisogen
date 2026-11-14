@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import Settings, get_settings
 from app.domain.enums import ServicioExterno
 from app.integrations import mock
+from app.integrations.cupones_api import CuponesApi
 from app.integrations.infra import MailMemoria, MailSmtp, StorageMemoria, StorageMinio
 from app.integrations.mail_api import MailApi
 from app.integrations.ports import (
@@ -107,10 +108,12 @@ class _Registrado:
 
         return llamar
 
+
 def _crear_mail(settings: Settings) -> MailPort:
     if settings.mail_modo == "api":
         return MailApi(settings, demo=MailSmtp(settings))
     return MailSmtp(settings) if settings.mail_modo == "smtp" else MailMemoria()
+
 
 class Adaptadores:
     """Instancias sin estado de sesión (se crean una vez por proceso)."""
@@ -119,7 +122,9 @@ class Adaptadores:
         self.bioinformatica: BioinformaticaPort = mock.BioinformaticaMock()
         self.obras_sociales: ObrasSocialesPort = mock.ObrasSocialesMock()
         self.familiograma: FamiliogramaPort = mock.FamiliogramaMock()
-        self.cupones: CuponesPort = mock.CuponesMock(sin_qr=settings.mock_cupones_sin_qr)
+        self.cupones: CuponesPort = (
+            CuponesApi(settings) if settings.cupones_modo == "api" else mock.CuponesMock()
+        )
         self.fedex: FedexPort = mock.FedexMock()
         self.ministerio: MinisterioSaludPort = mock.MinisterioSaludMock()
         self.rutas: OptimizacionRutasPort = (
@@ -196,3 +201,4 @@ class Integraciones:
     @property
     def mail(self) -> MailPort:
         return cast(MailPort, self._r(self._a.mail, ServicioExterno.MAIL))
+    

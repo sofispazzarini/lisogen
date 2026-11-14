@@ -48,8 +48,6 @@ VARIANTES_CONOCIDAS: Final = {
 
 COBERTURAS: Final = {"OSPS": Decimal(100), "ANDINA": Decimal(70), "FEDERAL": Decimal(50)}
 
-MARCA_CUPON: Final = "LISOGEN-CUPON:"
-
 
 def _h(texto: str) -> int:
     return int(hashlib.sha256(texto.encode()).hexdigest(), 16)
@@ -128,42 +126,21 @@ class SnomedCacheLocal:
 
 
 class CuponesMock:
-    """Genera Cupones con PDF/QR. Con `sin_qr` simula la excepción de E32 (sólo código numérico)."""
+    """Cupones sin red: códigos hexadecimales de 8 caracteres, como los de la API real.
 
-    def __init__(self, sin_qr: bool = False) -> None:
-        self._sin_qr = sin_qr
+    No guarda estado: las reglas de la API (un Cupón por Paciente, vencimiento a 30 días)"""
 
-    async def generar(self, *, descuento_pct: int, cantidad: int) -> list[CuponExterno]:
-        cupones = []
-        for _ in range(cantidad):
-            if self._sin_qr:
-                cupones.append(CuponExterno(f"{secrets.randbelow(10**10):010d}", None))
-                continue
-            codigo = f"LG{descuento_pct:02d}-{secrets.token_hex(4).upper()}"
-            pdf = generar_pdf(
-                "Cupón de descuento LisoGen",
-                [
-                    f"Descuento: {descuento_pct}% sobre lo que paga el Paciente.",
-                    f"Código: {codigo}",
-                    "",
-                    f"QR: {MARCA_CUPON}{codigo}",
-                    "Presentalo al pagar el Presupuesto de tu Estudio. Uso único.",
-                ],
-            )
-            cupones.append(CuponExterno(codigo, pdf))
-        return cupones
+    async def generar(self, *, gerente_id: int, descuento_pct: int, cantidad: int) -> list[CuponExterno]:
+        return [CuponExterno(secrets.token_hex(4)) for _ in range(cantidad)]
 
-    async def validar(self, *, codigo: str) -> bool:
-        return bool(re.fullmatch(r"LG\d{2}-[0-9A-F]{8}|\d{10}", codigo))
-
-    async def marcar_usado(self, *, codigo: str) -> None:
+    async def asignar_a_medico(self, *, gerente_id: int, medico_id: int, codigo: str) -> None:
         return None
 
+    async def asignar_a_paciente(self, *, medico_id: int, paciente_id: int, codigo: str) -> None:
+        return None
 
-def leer_codigo_de_pdf_cupon(contenido: bytes) -> str | None:
-    """Lectura simulada del QR: el PDF del módulo de cupones embebe el código tras la marca."""
-    m = re.search(re.escape(MARCA_CUPON).encode() + rb"([A-Z0-9-]{6,20})", contenido)
-    return m.group(1).decode() if m else None
+    async def canjear(self, *, paciente_id: int, codigo: str) -> None:
+        return None
 
 
 class FedexMock:
@@ -251,3 +228,4 @@ class ChatbotMock:
                 '"¿qué es la enfermedad de Gaucher?".'
             )
         return f"{texto}\n\nEsta información es general y no reemplaza la consulta con tu Médico Tratante."
+    

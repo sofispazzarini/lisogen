@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.domain.enums import ConceptoMov, EstadoCupon, EstadoReaut, RolUsuario, ServicioExterno
 from app.integrations.pdf import generar_pdf
+from app.integrations.ports import ErrorCupones
 from app.integrations.registro import Adaptadores
 from app.models import (
     Cupon,
@@ -22,6 +23,7 @@ from app.models import (
 )
 from tests import factories, flujos
 from tests.factories import headers
+from tests.falsos import CuponesFalla
 from tests.flujos import ok
 
 
@@ -177,7 +179,7 @@ async def test_aplicar_cupon_por_codigo_y_pagar_con_descuento(
     assert c.estado == EstadoCupon.USADO and c.usado_at is not None
     assert await session.scalar(
         select(IntegracionLog.id).where(
-            IntegracionLog.servicio == ServicioExterno.CUPONES, IntegracionLog.operacion == "marcar_usado"
+            IntegracionLog.servicio == ServicioExterno.CUPONES, IntegracionLog.operacion == "canjear"
         )
     )
 
@@ -207,18 +209,53 @@ async def test_aplicar_cupon_desde_pdf_con_qr(
     )
     r = await cliente.post(
         f"/paciente/estudios/{eid}/cupon",
+        files={"archivo": ("x.pdf", generar_pdf("Sin QR", ["nada"]), "application/pdf")},
+        headers=headers(paciente),
+    )
+    assert r.json()["code"] == "CUPON_INVALIDO"  # un PDF sin la marca del Cupón no se acepta
+    r = await cliente.post(
+        f"/paciente/estudios/{eid}/cupon",
         files={"archivo": ("cupon.pdf", pdf, "application/pdf")},
         headers=headers(paciente),
     )
     pres = await ok(r)
     assert Decimal(pres["monto_a_pagar_usd"]) == Decimal("250.00")
 
+
+@pytest.mark.parametrize(
+    ("error", "estado", "codigo"),
+    [
+        (ErrorCupones("HTTP 409", status=409), 409, "CUPON_CONFLICTO"),
+        (ErrorCupones("HTTP 400", status=400), 422, "CUPON_INVALIDO"),
+        (ErrorCupones("timeout", incierto=True), 502, "CUPONES_SIN_RESPUESTA"),
+    ],
+)
+async def test_cupon_rechazado_por_la_api_no_cambia_el_precio(
+    cliente: httpx.AsyncClient,
+    session: AsyncSession,
+    demo: dict[RolUsuario, Usuario],
+    adaptadores: Adaptadores,
+    error: ErrorCupones,
+    estado: int,
+    codigo: str,
+) -> None:
+    """Si el canje falla en la API de Cupones, el Presupuesto queda igual y el Cupón sigue disponible."""
+    paciente = demo[RolUsuario.PACIENTE]
+    p = await _paciente_demo(session)
+    eid = (await flujos.alta_estudio(cliente, session, demo[RolUsuario.MEDICO_TRATANTE], p.id))["id"]
+    await flujos.emitir_presupuesto(cliente, demo[RolUsuario.ADMINISTRATIVO], eid)
+    cupon = await _cupon_para(cliente, demo, p.id, 50)
+    adaptadores.cupones = CuponesFalla("canjear", error)
     r = await cliente.post(
-        f"/paciente/estudios/{eid}/cupon",
-        files={"archivo": ("x.pdf", generar_pdf("Sin QR", ["nada"]), "application/pdf")},
-        headers=headers(paciente),
+        f"/paciente/estudios/{eid}/cupon", data={"codigo": cupon["codigo"]}, headers=headers(paciente)
     )
-    assert r.json()["code"] in {"CUPON_INVALIDO", "PRESUPUESTO_CON_CUPON"}
+    assert r.status_code == estado and r.json()["code"] == codigo
+    c = await session.get(Cupon, cupon["id"])
+    assert c is not None
+    await session.refresh(c)
+    assert c.estado == EstadoCupon.ASIGNADO_PACIENTE and c.usado_at is None
+    pago = await flujos.pagar(cliente, paciente, eid)
+    assert Decimal(pago["monto_usd"]) == Decimal("500.00")
 
 
 async def test_cupon_de_otro_paciente_no_vale(
@@ -388,3 +425,4 @@ async def test_solo_administrativo_emite(
     for rol in (RolUsuario.PACIENTE, RolUsuario.MEDICO_TRATANTE, RolUsuario.GERENTE_MEDICO):
         r = await cliente.post(f"/administrativo/estudios/{eid}/presupuesto", headers=headers(demo[rol]))
         assert r.status_code == 403
+        

@@ -309,9 +309,9 @@ async def cargar_estudios(session: AsyncSession, ints: Integraciones) -> None:
     # B (Gaucher, Paciente demo): Presupuesto emitido y un Cupón listo para aplicar
     b = await _alta_estudio(session, ints, medico, demo, "Gaucher")
     await finanzas.emitir_presupuesto(session, ints, admin, b)
-    generados = await cupones.generar(session, ints, gerente, 20, 3, None)
-    await cupones.asignar_a_medico(session, [c_.id for c_ in generados[:2]], medico.id)
-    await cupones.asignar_a_paciente(session, medico, generados[0].id, demo.id)
+    generados = await cupones.generar(session, ints, gerente, 20, 3)
+    await cupones.asignar_a_medico(session, ints, gerente, [c_.id for c_ in generados[:2]], medico.id)
+    await cupones.asignar_a_paciente(session, ints, medico, generados[0].id, demo.id)
 
     # D (MPS 1): recién dado de alta, para Emitir Presupuesto
     await _alta_estudio(session, ints, medico, valeria, "MPS 1")
@@ -349,3 +349,4 @@ async def cargar_estudios(session: AsyncSession, ints: Integraciones) -> None:
         )
         await registrar_extraccion(session, turno.id, Decimal("3.0"))
     await logistica.generar_ordenes_del_dia(session, ints, logistica.hoy())
+    

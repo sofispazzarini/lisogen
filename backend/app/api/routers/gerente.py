@@ -76,9 +76,7 @@ async def listar_cupones(_: Gerente, session: Sesion, ints: Ints) -> list[CuponS
 async def generar_cupones(
     datos: GenerarCuponesEntrada, gerente: Gerente, session: Sesion, ints: Ints
 ) -> list[CuponSalida]:
-    nuevos = await cupones.generar(
-        session, ints, gerente, datos.descuento_pct, datos.cantidad, datos.vence_at
-    )
+    nuevos = await cupones.generar(session, ints, gerente, datos.descuento_pct, datos.cantidad)
     ids = {c.id for c in nuevos}
     return [c for c in await cupones.listar_todos(session, ints) if c.id in ids]
 
@@ -89,6 +87,6 @@ async def medicos(_: Gerente, session: Sesion) -> list[MedicoSalida]:
 
 
 @router.post("/cupones/asignar", response_model=Ok, summary="Asignar Cupones a Médico Tratante (E33)")
-async def asignar_cupones(datos: AsignarCuponesEntrada, _: Gerente, session: Sesion) -> Ok:
-    await cupones.asignar_a_medico(session, datos.cupon_ids, datos.medico_id)
+async def asignar_cupones(datos: AsignarCuponesEntrada, gerente: Gerente, session: Sesion, ints: Ints) -> Ok:
+    await cupones.asignar_a_medico(session, ints, gerente, datos.cupon_ids, datos.medico_id)
     return Ok()

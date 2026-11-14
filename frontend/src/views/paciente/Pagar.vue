@@ -88,7 +88,7 @@ async function pagar(): Promise<void> {
             </button>
           </p>
           <div class="grilla-2">
-            <label class="campo"><span>Código</span><input v-model="codigo" placeholder="LG20-XXXXXXXX" /></label>
+            <label class="campo"><span>Código</span><input v-model="codigo" placeholder="Código del Cupón" /></label>
             <label class="campo">
               <span>…o subí el PDF con el QR</span>
               <input type="file" accept="application/pdf" @change="pdf = ($event.target as HTMLInputElement).files?.[0] ?? null" />
