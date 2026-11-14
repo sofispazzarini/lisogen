@@ -258,9 +258,22 @@
         "type": "object"
       },
       "ChatEntrada": {
+        "description": "El Chatbot acepta de 1 a 1000 caracteres, sin datos personales. `conversacion_id` es el que\ndevolvió la respuesta anterior; sin él se abre una conversación nueva.",
         "properties": {
+          "conversacion_id": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Conversacion Id"
+          },
           "pregunta": {
-            "maxLength": 500,
+            "maxLength": 1000,
             "minLength": 1,
             "title": "Pregunta",
             "type": "string"
@@ -274,6 +287,17 @@
       },
       "ChatMensajeSalida": {
         "properties": {
+          "conversacion_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Conversacion Id"
+          },
           "created_at": {
             "format": "date-time",
             "title": "Created At",
@@ -297,6 +321,17 @@
               }
             ],
             "title": "Respuesta"
+          },
+          "tipo": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tipo"
           }
         },
         "required": [
@@ -418,6 +453,35 @@
           "qr_url"
         ],
         "title": "CuponSalida",
+        "type": "object"
+      },
+      "DestinoSalida": {
+        "description": "Destino del recorrido: el Laboratorio Central, donde terminan todas las Órdenes del Día.",
+        "properties": {
+          "direccion": {
+            "title": "Direccion",
+            "type": "string"
+          },
+          "latitud": {
+            "title": "Latitud",
+            "type": "string"
+          },
+          "longitud": {
+            "title": "Longitud",
+            "type": "string"
+          },
+          "nombre": {
+            "title": "Nombre",
+            "type": "string"
+          }
+        },
+        "required": [
+          "nombre",
+          "direccion",
+          "latitud",
+          "longitud"
+        ],
+        "title": "DestinoSalida",
         "type": "object"
       },
       "DiagnosticoEntrada": {
@@ -1053,18 +1117,6 @@
             "minimum": 1.0,
             "title": "Descuento Pct",
             "type": "integer"
-          },
-          "vence_at": {
-            "anyOf": [
-              {
-                "format": "date-time",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Vence At"
           }
         },
         "required": [
@@ -1576,6 +1628,9 @@
       },
       "OrdenDelDiaSalida": {
         "properties": {
+          "destino": {
+            "$ref": "#/components/schemas/DestinoSalida"
+          },
           "fecha": {
             "format": "date",
             "title": "Fecha",
@@ -1618,6 +1673,7 @@
           "fecha",
           "provincia",
           "paradas",
+          "destino",
           "muestras_en_camino",
           "llegada_lab_at"
         ],

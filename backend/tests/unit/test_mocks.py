@@ -139,15 +139,25 @@ async def test_rutas_vecino_mas_cercano() -> None:
     ],
 )
 async def test_chatbot_responde_sobre_las_patologias(pregunta: str, esperado: str) -> None:
-    respuesta = await mock.ChatbotMock().responder(pregunta=pregunta)
-    assert esperado in respuesta
-    assert "no reemplaza la consulta con tu Médico Tratante" in respuesta
+    r = await mock.ChatbotMock().responder(pregunta=pregunta)
+    assert esperado in r.respuesta
+    assert r.tipo == "respuesta"
+    assert "no reemplaza la consulta con tu Médico Tratante" in r.respuesta
 
 
 async def test_chatbot_no_deriva_a_una_persona() -> None:
-    respuesta = await mock.ChatbotMock().responder(pregunta="Pasame con un humano")
-    assert "Fabry, Pompe, MPS 1, Gaucher y ASMD" in respuesta
-    assert "derivo" not in respuesta.lower() and "operador" not in respuesta.lower()
+    r = await mock.ChatbotMock().responder(pregunta="Pasame con un humano")
+    assert "Fabry, Pompe, MPS 1, Gaucher y ASMD" in r.respuesta
+    assert r.tipo == "fuera_de_alcance"
+    assert "derivo" not in r.respuesta.lower() and "operador" not in r.respuesta.lower()
+
+
+async def test_chatbot_mantiene_la_conversacion() -> None:
+    bot = mock.ChatbotMock()
+    primera = await bot.responder(pregunta="¿Qué es Fabry?")
+    assert primera.conversacion_id
+    segunda = await bot.responder(pregunta="¿y Pompe?", conversacion_id=primera.conversacion_id)
+    assert segunda.conversacion_id == primera.conversacion_id
 
 
 # --- Infra en memoria y PDF -------------------------------------------------------------------
@@ -196,4 +206,3 @@ def test_resumir_omite_datos_sensibles() -> None:
     assert _resumir(b"123") == {"bytes": 3}
     assert _resumir("x" * 500) == {"texto_len": 500}
     assert _resumir(list(range(50))) == {"cantidad": 50}
-    

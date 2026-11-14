@@ -349,4 +349,3 @@ async def cargar_estudios(session: AsyncSession, ints: Integraciones) -> None:
         )
         await registrar_extraccion(session, turno.id, Decimal("3.0"))
     await logistica.generar_ordenes_del_dia(session, ints, logistica.hoy())
-    

@@ -293,4 +293,3 @@ async def aplicar(
         calculo.monto_a_pagar_usd,
     )
     cupon.estado, cupon.usado_at = EstadoCupon.USADO, ahora()
-    

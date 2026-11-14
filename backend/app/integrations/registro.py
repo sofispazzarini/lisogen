@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import Settings, get_settings
 from app.domain.enums import ServicioExterno
 from app.integrations import mock
+from app.integrations.chatbot_api import ChatbotApi
 from app.integrations.cupones_api import CuponesApi
 from app.integrations.infra import MailMemoria, MailSmtp, StorageMemoria, StorageMinio
 from app.integrations.mail_api import MailApi
@@ -34,7 +35,18 @@ from app.integrations.rutas_api import RutasApi
 from app.models import IntegracionLog
 
 CAMPOS_SENSIBLES: Final = frozenset(
-    {"destinatario", "asunto", "cuerpo", "familiares", "csv", "pregunta", "contenido", "qr_pdf", "nombre"}
+    {
+        "destinatario",
+        "asunto",
+        "cuerpo",
+        "familiares",
+        "csv",
+        "pregunta",
+        "respuesta",
+        "contenido",
+        "qr_pdf",
+        "nombre",
+    }
 )
 
 
@@ -132,7 +144,9 @@ class Adaptadores:
             if settings.rutas_modo == "api"
             else mock.OptimizacionRutasMock()
         )
-        self.chatbot: ChatbotPort = mock.ChatbotMock()
+        self.chatbot: ChatbotPort = (
+            ChatbotApi(settings) if settings.chatbot_modo == "api" else mock.ChatbotMock()
+        )
         self.mail: MailPort = _crear_mail(settings)
         self.storage: StoragePort = (
             StorageMinio(settings) if settings.storage_modo == "minio" else StorageMemoria()
@@ -201,4 +215,3 @@ class Integraciones:
     @property
     def mail(self) -> MailPort:
         return cast(MailPort, self._r(self._a.mail, ServicioExterno.MAIL))
-    

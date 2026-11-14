@@ -99,8 +99,33 @@ class OptimizacionRutasPort(Protocol):
         ...
 
 
+@dataclass(frozen=True)
+class RespuestaChat:
+    """`tipo`: respuesta | fuera_de_alcance | derivar_medico | sin_informacion. En los cuatro casos
+    se muestra el texto tal cual."""
+
+    respuesta: str
+    conversacion_id: str | None
+    tipo: str
+
+
+class ErrorChatbot(Exception):
+    """El Chatbot rechazó el pedido o no respondió.
+
+    `status`: código HTTP (0 si no hubo respuesta). `detalle`: el `detail` que mandó el servicio (sirve
+    para mostrar tal cual el aviso de 503). `reintentar_en`: segundos que pidió esperar (429)."""
+
+    def __init__(
+        self, mensaje: str, *, status: int = 0, detalle: str = "", reintentar_en: int | None = None
+    ) -> None:
+        super().__init__(mensaje)
+        self.status = status
+        self.detalle = detalle
+        self.reintentar_en = reintentar_en
+
+
 class ChatbotPort(Protocol):
-    async def responder(self, *, pregunta: str) -> str: ...
+    async def responder(self, *, pregunta: str, conversacion_id: str | None = None) -> RespuestaChat: ...
 
 
 class MailPort(Protocol):
@@ -118,4 +143,3 @@ class StoragePort(Protocol):
     async def guardar(self, *, clave: str, contenido: bytes, mime: str) -> None: ...
     async def leer(self, *, clave: str) -> bytes: ...
     async def url_firmada(self, *, clave: str, nombre_descarga: str) -> str: ...
-    

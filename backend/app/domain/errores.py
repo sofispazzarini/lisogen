@@ -32,4 +32,3 @@ class NoEncontrado(ErrorNegocio):
 class SinPermiso(ErrorNegocio):
     def __init__(self, message: str = "No tenés permiso para realizar esta acción.") -> None:
         super().__init__("SIN_PERMISO", message, status=403)
-        

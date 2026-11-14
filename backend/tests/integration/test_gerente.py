@@ -318,4 +318,3 @@ async def test_asignar_cupon_a_medico_con_api_sin_respuesta_no_cambia_nada(
     assert cupon is not None
     await session.refresh(cupon)
     assert cupon.medico_asignado_id is None
-    

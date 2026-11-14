@@ -121,4 +121,3 @@ def test_exige_clave_y_https() -> None:
         CuponesApi(Settings(cupones_api_key=""))
     with pytest.raises(RuntimeError, match="https"):
         CuponesApi(Settings(cupones_api_key="ecg_x", cupones_api_url="http://x"))
-        

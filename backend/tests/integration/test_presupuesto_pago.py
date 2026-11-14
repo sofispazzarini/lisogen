@@ -425,4 +425,3 @@ async def test_solo_administrativo_emite(
     for rol in (RolUsuario.PACIENTE, RolUsuario.MEDICO_TRATANTE, RolUsuario.GERENTE_MEDICO):
         r = await cliente.post(f"/administrativo/estudios/{eid}/presupuesto", headers=headers(demo[rol]))
         assert r.status_code == 403
-        

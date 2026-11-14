@@ -5,6 +5,7 @@ import math
 import re
 import secrets
 import unicodedata
+import uuid
 from datetime import datetime
 from decimal import Decimal
 from typing import Final
@@ -19,6 +20,7 @@ from app.integrations.ports import (
     FamiliarExterno,
     Parada,
     Punto,
+    RespuestaChat,
     VarianteExterna,
 )
 from app.models import SnomedConcepto
@@ -128,7 +130,8 @@ class SnomedCacheLocal:
 class CuponesMock:
     """Cupones sin red: códigos hexadecimales de 8 caracteres, como los de la API real.
 
-    No guarda estado: las reglas de la API (un Cupón por Paciente, vencimiento a 30 días)"""
+    No guarda estado: las reglas de la API (un Cupón por Paciente, vencimiento a 30 días) las simulan
+    los tests con adaptadores propios cuando hace falta."""
 
     async def generar(self, *, gerente_id: int, descuento_pct: int, cantidad: int) -> list[CuponExterno]:
         return [CuponExterno(secrets.token_hex(4)) for _ in range(cantidad)]
@@ -215,17 +218,23 @@ _ALIAS: Final = {"mps 1": "mps", "mucopolisacaridosis": "mps", "niemann": "asmd"
 class ChatbotMock:
     """Responde sólo sobre las cinco Patologías y el proceso del Estudio. No deriva a una persona (E14)."""
 
-    async def responder(self, *, pregunta: str) -> str:
+    async def responder(self, *, pregunta: str, conversacion_id: str | None = None) -> RespuestaChat:
         p = _normalizar(pregunta)
         claves = [k for k in _RESPUESTAS if k in p] + [v for a, v in _ALIAS.items() if a in p]
+        tipo = "respuesta"
         if claves:
             vistas = list(dict.fromkeys(claves))
             texto = " ".join(_RESPUESTAS[k] for k in vistas[:2])
         else:
+            tipo = "fuera_de_alcance"
             texto = (
                 "Puedo responder dudas sobre las cinco Patologías que estudia LisoGen: Fabry, Pompe, MPS 1, "
                 "Gaucher y ASMD, y sobre cómo sigue tu Estudio. Probá preguntarme, por ejemplo, "
                 '"¿qué es la enfermedad de Gaucher?".'
             )
-        return f"{texto}\n\nEsta información es general y no reemplaza la consulta con tu Médico Tratante."
-    
+        aviso = "Esta información es general y no reemplaza la consulta con tu Médico Tratante."
+        return RespuestaChat(
+            respuesta=f"{texto}\n\n{aviso}",
+            conversacion_id=conversacion_id or f"mock-{uuid.uuid4()}",
+            tipo=tipo,
+        )

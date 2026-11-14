@@ -1,7 +1,7 @@
 """Adaptadores falsos para probar cómo reacciona LisoGen cuando un módulo externo responde mal."""
 
-from app.integrations.mock import CuponesMock
-from app.integrations.ports import CuponExterno, ErrorCupones
+from app.integrations.mock import ChatbotMock, CuponesMock
+from app.integrations.ports import CuponExterno, ErrorChatbot, ErrorCupones, RespuestaChat
 
 
 class CuponesFalla(CuponesMock):
@@ -33,4 +33,13 @@ class CuponesFalla(CuponesMock):
 
     async def canjear(self, *, paciente_id: int, codigo: str) -> None:
         self._pasa("canjear")
-        
+
+
+class ChatbotFalla(ChatbotMock):
+    """Chatbot que siempre responde `error`, como si el servicio externo estuviera caído o limitado."""
+
+    def __init__(self, error: ErrorChatbot) -> None:
+        self._error = error
+
+    async def responder(self, *, pregunta: str, conversacion_id: str | None = None) -> RespuestaChat:
+        raise self._error

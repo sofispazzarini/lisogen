@@ -27,6 +27,12 @@ class Settings(BaseSettings):
     cupones_api_url: str = "https://vekuhonbpqtzakqbcoph.supabase.co/functions/v1/cupones-api"
     cupones_api_key: str = ""
 
+    # Chatbot (GenLab): la apikey y el token van en .env, nunca en el repositorio
+    chatbot_modo: Literal["mock", "api"] = "mock"
+    chatbot_url: str = "https://vglzngsrbyagquqqmakf.supabase.co/functions/v1/chat"
+    chatbot_apikey: str = ""
+    chatbot_token: str = ""
+
     # Mail (Mailpit en local)
     mail_modo: Literal["smtp", "memoria", "api"] = "smtp"
     mail_api_url: str = ""
@@ -50,7 +56,7 @@ class Settings(BaseSettings):
     verificar_dispositivo: bool = True
     rate_limit_intentos: int = 5
     rate_limit_ventana_seg: int = 300
-    
+
 
     # Laboratorio Central: calle 62 N° 555, La Plata
     lab_central_lat: Decimal = Decimal("-34.919223")

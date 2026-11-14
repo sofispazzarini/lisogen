@@ -33,7 +33,7 @@ def pytest_configure(config: pytest.Config) -> None:
     }.items():
         os.environ.setdefault(clave, valor)
     # Los tests nunca llaman a las APIs reales, aunque el .env (o el contenedor) diga "api"
-    os.environ["CUPONES_MODO"] = os.environ["RUTAS_MODO"] = "mock"
+    os.environ["CUPONES_MODO"] = os.environ["RUTAS_MODO"] = os.environ["CHATBOT_MODO"] = "mock"
     get_settings.cache_clear()
 
 
@@ -147,4 +147,3 @@ async def cliente(session: AsyncSession, adaptadores: Adaptadores) -> AsyncItera
     async with httpx.AsyncClient(transport=transporte, base_url="http://test", headers=cabeceras) as c:
         yield c
     app.dependency_overrides.clear()
-    
