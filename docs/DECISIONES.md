@@ -76,3 +76,8 @@ Regla de precedencia: **Escenarios + `schema.sql`** > Glosario LEL > prototipo. 
 - **F5 · Sin HTML de datos.** Los popups del mapa se arman con nodos de texto y las vistas sólo interpolan texto, así un dato cargado por un usuario nunca se interpreta como HTML.
 - **F6 · Front en docker-compose.** El servicio `web` corre el servidor de desarrollo de Vite (demo local). Para producción: `npm run build` y servir `dist/` detrás del mismo dominio de la API.
 - **F7 · Tomar Muestra.** No tiene vista, igual que no tiene endpoint (C6). Las Muestras del seed y de los tests se registran con el servicio.
+
+El recorrido es abierto: empieza en el centro de menor id y termina en el Laboratorio Central (calle 62 N° 555, La Plata), que se muestra como destino en la Orden del Día.
+El seed suma Belgrano y Recoleta como centros de ejemplo, con coordenadas inventadas.
+Mail: “enviado” significa que la API aceptó el pedido; el id del aviso queda en el log.
+Actualizá T9 y T15, que hablan de 10 centros y 6 estudios.

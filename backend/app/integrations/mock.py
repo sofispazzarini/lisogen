@@ -193,7 +193,9 @@ def _distancia(a: Punto, b: Punto) -> float:
 class OptimizacionRutasMock:
     """Vecino más cercano desde el origen; empates por id. Determinístico."""
 
-    async def ordenar_paradas(self, *, origen: Punto, paradas: list[Parada]) -> list[int]:
+    async def ordenar_paradas(
+        self, *, origen: Punto, paradas: list[Parada], destino: Punto | None = None
+    ) -> list[int]:
         pendientes = sorted(paradas, key=lambda p: p.id)
         actual, orden = origen, []
         while pendientes:

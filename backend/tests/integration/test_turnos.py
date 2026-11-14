@@ -58,7 +58,7 @@ async def test_centros_y_agenda(
 ) -> None:
     h = headers(demo[RolUsuario.PACIENTE])
     centros = await ok(await cliente.get("/paciente/centros", headers=h))
-    assert len(centros) == 10 and all(c["latitud"] and c["longitud"] for c in centros)
+    assert len(centros) == 12 and all(c["latitud"] and c["longitud"] for c in centros)
 
     cid = await _centro(session)
     dia = await flujos.proximo_dia_habil(session)

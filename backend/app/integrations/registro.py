@@ -29,6 +29,7 @@ from app.integrations.ports import (
     SnomedPort,
     StoragePort,
 )
+from app.integrations.rutas_api import RutasApi
 from app.models import IntegracionLog
 
 CAMPOS_SENSIBLES: Final = frozenset(
@@ -121,7 +122,11 @@ class Adaptadores:
         self.cupones: CuponesPort = mock.CuponesMock(sin_qr=settings.mock_cupones_sin_qr)
         self.fedex: FedexPort = mock.FedexMock()
         self.ministerio: MinisterioSaludPort = mock.MinisterioSaludMock()
-        self.rutas: OptimizacionRutasPort = mock.OptimizacionRutasMock()
+        self.rutas: OptimizacionRutasPort = (
+            RutasApi(settings, respaldo=mock.OptimizacionRutasMock())
+            if settings.rutas_modo == "api"
+            else mock.OptimizacionRutasMock()
+        )
         self.chatbot: ChatbotPort = mock.ChatbotMock()
         self.mail: MailPort = _crear_mail(settings)
         self.storage: StoragePort = (

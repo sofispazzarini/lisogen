@@ -1,4 +1,4 @@
-"""El seed deja 6 Estudios en distintos Estados (uno Urgente) armados con los servicios reales."""
+"""El seed deja 8 Estudios en distintos Estados (uno Urgente) armados con los servicios reales."""
 
 import httpx
 from sqlalchemy import select
@@ -31,7 +31,7 @@ async def test_seed_de_estudios(
     await cargar_estudios(session, Integraciones(session, adaptadores))
 
     estudios = list(await session.scalars(select(Estudio).order_by(Estudio.id)))
-    assert len(estudios) == 6
+    assert len(estudios) == 8
     assert {e.estado for e in estudios} == {
         EstadoEstudio.FINALIZADO,
         EstadoEstudio.POR_PAGAR,

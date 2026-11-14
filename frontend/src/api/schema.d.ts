@@ -1768,8 +1768,24 @@ export interface components {
             /** Nombre */
             nombre: string;
         };
+        /**
+         * DestinoSalida
+         * @description Destino del recorrido: el Laboratorio Central, donde terminan todas las Órdenes del Día.
+         */
+        DestinoSalida: {
+            /** Direccion */
+            direccion: string;
+            /** Latitud */
+            latitud: string;
+            /** Longitud */
+            longitud: string;
+            /** Nombre */
+            nombre: string;
+        };
         /** OrdenDelDiaSalida */
         OrdenDelDiaSalida: {
+            /** @description Destino del recorrido: el Laboratorio Central, donde terminan todas las Órdenes del Día. */
+            destino: components["schemas"]["DestinoSalida"];
             /**
              * Fecha
              * Format: date

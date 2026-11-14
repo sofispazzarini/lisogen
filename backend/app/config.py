@@ -47,9 +47,12 @@ class Settings(BaseSettings):
     rate_limit_intentos: int = 5
     rate_limit_ventana_seg: int = 300
 
-    # Laboratorio Central (origen de recorridos y ubicación de Muestras en el laboratorio)
-    lab_central_lat: Decimal = Decimal("-34.603722")
-    lab_central_lon: Decimal = Decimal("-58.381592")
+
+    # Laboratorio Central: calle 62 N° 555, La Plata
+    lab_central_lat: Decimal = Decimal("-34.919223")
+    lab_central_lon: Decimal = Decimal("-57.942838")
+    rutas_modo: Literal["mock", "api"] = "mock"
+    rutas_api_url: str = "https://optimizacionapi.vercel.app/api/optimizacion"
 
     scheduler_activo: bool = True
 

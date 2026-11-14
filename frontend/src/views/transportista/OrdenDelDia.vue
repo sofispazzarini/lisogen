@@ -11,16 +11,29 @@ const { datos: orden, cargando, error } = usarCarga(() => ok(api.GET('/transport
 const siguiente = computed(() => orden.value?.paradas.find((p) => p.estado === 'PENDIENTE') ?? null)
 const terminado = computed(() => !!orden.value && !siguiente.value)
 
-const marcadores = computed<Marcador[]>(() =>
-  (orden.value?.paradas ?? []).map((p) => ({
+const marcadores = computed<Marcador[]>(() => {
+  if (!orden.value) return []
+  const paradas = orden.value.paradas.map((p) => ({
     id: p.id,
     lat: Number(p.centro.latitud),
     lon: Number(p.centro.longitud),
     titulo: `${p.posicion}. ${p.centro.nombre}`,
     detalle: `${p.centro.direccion} · ${p.muestras_listas} Muestras`,
     destacado: p.id === siguiente.value?.id,
-  })),
-)
+  }))
+  const destino = orden.value.destino
+  // El recorrido termina siempre en el Laboratorio Central: se dibuja como último punto.
+  return [
+    ...paradas,
+    {
+      id: 'destino',
+      lat: Number(destino.latitud),
+      lon: Number(destino.longitud),
+      titulo: `Destino: ${destino.nombre}`,
+      detalle: destino.direccion,
+    },
+  ]
+})
 
 /** Envío de posición para Seguir Muestra (E19): cada 60 s mientras la pantalla está abierta. */
 const posicion = ref<'activa' | 'denegada' | 'no-disponible' | null>(null)
@@ -75,6 +88,14 @@ onBeforeUnmount(() => vigilancia !== null && navigator.geolocation.clearWatch(vi
               <small>{{ p.estado === 'RECOGIDO' ? 'Recogido' : `${p.muestras_listas} Muestras listas para retirar` }}</small>
             </div>
           </li>
+          <li class="tarjeta parada destino">
+            <span class="numero">🏁</span>
+            <div>
+              <strong>Destino: {{ orden.destino.nombre }}</strong>
+              <div class="suave">{{ orden.destino.direccion }}</div>
+              <small>Entregá acá todas las Muestras recolectadas</small>
+            </div>
+          </li>
         </ol>
         <p v-if="terminado && orden.llegada_lab_at === null" class="suave">Recolectaste todos los Centros.</p>
       </template>
@@ -90,4 +111,5 @@ onBeforeUnmount(() => vigilancia !== null && navigator.geolocation.clearWatch(vi
 .parada.hecha { opacity: 0.6; }
 .numero { width: 34px; height: 34px; flex: none; border-radius: 50%; display: grid; place-items: center; background: var(--color-primario); color: #fff; font-weight: 700; }
 .hecha .numero { background: var(--color-acento); }
+.destino .numero { background: var(--color-acento); font-size: 1rem; }
 </style>

@@ -78,7 +78,11 @@ class MinisterioSaludPort(Protocol):
 
 
 class OptimizacionRutasPort(Protocol):
-    async def ordenar_paradas(self, *, origen: Punto, paradas: list[Parada]) -> list[int]: ...
+    async def ordenar_paradas(
+        self, *, origen: Punto, paradas: list[Parada], destino: Punto | None = None
+    ) -> list[int]:
+        """Orden de visita. `origen` y `destino` (por defecto, el mismo origen) quedan fijos."""
+        ...
 
 
 class ChatbotPort(Protocol):
@@ -88,9 +92,11 @@ class ChatbotPort(Protocol):
 class MailPort(Protocol):
     async def enviar(
         self, *, destinatario: str, asunto: str, cuerpo: str, clave: str | None = None
-    ) -> None:
-        """`clave` identifica el aviso para reintentar sin duplicar (API de Notificaciones)."""
+    ) -> str | None:
+        """`clave` identifica el aviso para reintentar sin duplicar (API de Notificaciones).
+        Devuelve el id del aviso en la API, si el adaptador lo tiene."""
         ...
+
 
 class StoragePort(Protocol):
     """MinIO privado. Nunca se exponen claves: sólo URLs firmadas de corta duración."""

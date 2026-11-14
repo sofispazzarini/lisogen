@@ -284,11 +284,21 @@ class ParadaSalida(Esquema):
     recogido_at: datetime | None
 
 
+class DestinoSalida(Esquema):
+    """Destino del recorrido: el Laboratorio Central, donde terminan todas las Órdenes del Día."""
+
+    nombre: str
+    direccion: str
+    latitud: Decimal
+    longitud: Decimal
+
+
 class OrdenDelDiaSalida(Esquema):
     id: int
     fecha: date
     provincia: str
     paradas: list[ParadaSalida]
+    destino: DestinoSalida
     muestras_en_camino: int
     llegada_lab_at: datetime | None
 
