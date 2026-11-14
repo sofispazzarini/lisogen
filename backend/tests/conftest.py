@@ -33,7 +33,8 @@ def pytest_configure(config: pytest.Config) -> None:
     }.items():
         os.environ.setdefault(clave, valor)
     # Los tests nunca llaman a las APIs reales, aunque el .env (o el contenedor) diga "api"
-    os.environ["CUPONES_MODO"] = os.environ["RUTAS_MODO"] = os.environ["CHATBOT_MODO"] = "mock"
+    for modo in ("CUPONES_MODO", "RUTAS_MODO", "CHATBOT_MODO", "OBRAS_SOCIALES_MODO"):
+        os.environ[modo] = "mock"
     get_settings.cache_clear()
 
 

@@ -254,7 +254,7 @@ async def cargar_estudios(session: AsyncSession, ints: Integraciones) -> None:
     await finanzas.emitir_presupuesto(session, ints, admin, a)
     await finanzas.pagar(session, cuenta_demo, a)
     await finanzas.emitir_presupuesto(session, ints, admin, c)
-    await finanzas.registrar_autorizacion(session, admin, c)
+    await finanzas.registrar_autorizacion(session, ints, admin, c)
     turno_a = await turnos.sacar_turno(
         session,
         ints,

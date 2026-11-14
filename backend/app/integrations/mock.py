@@ -6,7 +6,8 @@ import re
 import secrets
 import unicodedata
 import uuid
-from datetime import datetime
+from dataclasses import replace
+from datetime import date, datetime
 from decimal import Decimal
 from typing import Final
 
@@ -21,6 +22,7 @@ from app.integrations.ports import (
     Parada,
     Punto,
     RespuestaChat,
+    SolicitudExterna,
     VarianteExterna,
 )
 from app.models import SnomedConcepto
@@ -84,8 +86,36 @@ class BioinformaticaMock:
 
 
 class ObrasSocialesMock:
+    """No guarda estado ni aplica las reglas de la API (una solicitud sólo se resuelve una vez, una demanda
+    por vez). Los tests que necesitan que la API rechace un pedido usan `ObrasSocialesFalla`
+    (tests/falsos.py)."""
+
     async def cobertura(self, *, codigo_obra_social: str, cantidad_genes: int) -> Decimal:
         return COBERTURAS.get(codigo_obra_social.upper(), Decimal(0))
+
+    async def solicitar(
+        self, *, codigo_obra_social: str, paciente_nombre: str, fecha: date, referencia: str
+    ) -> SolicitudExterna:
+        token = f"{_h(codigo_obra_social + referencia) % 10**12:012d}"
+        return SolicitudExterna(
+            id=f"mock-sol-{token}",
+            estado="pendiente",
+            url_autorizar=f"mock://simulacion/{token}/autorizar",
+            url_rechazar=f"mock://simulacion/{token}/rechazar",
+        )
+
+    async def autorizar(
+        self, *, solicitud: SolicitudExterna, porcentaje: Decimal | None = None
+    ) -> SolicitudExterna:
+        return replace(solicitud, estado="autorizada")
+
+    async def rechazar(self, *, solicitud: SolicitudExterna, motivo: str) -> SolicitudExterna:
+        return replace(solicitud, estado="rechazada")
+
+    async def presentar_demanda(
+        self, *, solicitud: SolicitudExterna, nombre_archivo: str, contenido: bytes
+    ) -> SolicitudExterna:
+        return replace(solicitud, estado="demanda_en_curso")
 
 
 class FamiliogramaMock:

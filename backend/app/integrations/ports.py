@@ -2,7 +2,7 @@
 y toda llamada queda registrada en `integracion_log` (registro.py)."""
 
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 from typing import Protocol
 
@@ -62,8 +62,56 @@ class BioinformaticaPort(Protocol):
     async def variantes_por_gen(self, *, gen: str) -> list[VarianteExterna]: ...
 
 
+@dataclass(frozen=True)
+class SolicitudExterna:
+    """Solicitud de cobertura en la API de Obras Sociales. Las URLs de simulación son las que la API
+    entrega para hacer de Obra Social (autorizar o rechazar); `estado` es el que informó la API."""
+
+    id: str
+    estado: str
+    url_autorizar: str | None
+    url_rechazar: str | None
+
+
+class ErrorObraSocial(Exception):
+    """La API de Obras Sociales rechazó el pedido o no respondió.
+
+    `status`: código HTTP (0 si no hubo respuesta). `codigo`: el `error.codigo` de la API (por ejemplo
+    ESTADO_INVALIDO). `incierto`: no hubo respuesta, así que la operación pudo haberse aplicado igual."""
+
+    def __init__(self, mensaje: str, *, status: int = 0, codigo: str = "", incierto: bool = False) -> None:
+        super().__init__(mensaje)
+        self.status = status
+        self.codigo = codigo
+        self.incierto = incierto
+
+
 class ObrasSocialesPort(Protocol):
-    async def cobertura(self, *, codigo_obra_social: str, cantidad_genes: int) -> Decimal: ...
+    async def cobertura(self, *, codigo_obra_social: str, cantidad_genes: int) -> Decimal:
+        """Porcentaje de cobertura (0 a 100) de la Obra Social."""
+        ...
+
+    async def solicitar(
+        self, *, codigo_obra_social: str, paciente_nombre: str, fecha: date, referencia: str
+    ) -> SolicitudExterna:
+        """Crea la solicitud de cobertura de un Estudio (queda pendiente)."""
+        ...
+
+    async def autorizar(
+        self, *, solicitud: SolicitudExterna, porcentaje: Decimal | None = None
+    ) -> SolicitudExterna:
+        """Simula que la Obra Social autoriza. `porcentaje` sólo se manda al resolver una demanda."""
+        ...
+
+    async def rechazar(self, *, solicitud: SolicitudExterna, motivo: str) -> SolicitudExterna:
+        """Simula que la Obra Social rechaza."""
+        ...
+
+    async def presentar_demanda(
+        self, *, solicitud: SolicitudExterna, nombre_archivo: str, contenido: bytes
+    ) -> SolicitudExterna:
+        """Carga la decisión judicial (PDF, hasta 5 MB) de una solicitud rechazada."""
+        ...
 
 
 class FamiliogramaPort(Protocol):

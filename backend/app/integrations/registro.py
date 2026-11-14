@@ -18,6 +18,7 @@ from app.integrations.chatbot_api import ChatbotApi
 from app.integrations.cupones_api import CuponesApi
 from app.integrations.infra import MailMemoria, MailSmtp, StorageMemoria, StorageMinio
 from app.integrations.mail_api import MailApi
+from app.integrations.obras_sociales_api import ObrasSocialesApi
 from app.integrations.ports import (
     BioinformaticaPort,
     ChatbotPort,
@@ -46,6 +47,10 @@ CAMPOS_SENSIBLES: Final = frozenset(
         "contenido",
         "qr_pdf",
         "nombre",
+        "paciente_nombre",
+        "nombre_archivo",
+        "url_autorizar",
+        "url_rechazar",
     }
 )
 
@@ -132,7 +137,9 @@ class Adaptadores:
 
     def __init__(self, settings: Settings) -> None:
         self.bioinformatica: BioinformaticaPort = mock.BioinformaticaMock()
-        self.obras_sociales: ObrasSocialesPort = mock.ObrasSocialesMock()
+        self.obras_sociales: ObrasSocialesPort = (
+            ObrasSocialesApi(settings) if settings.obras_sociales_modo == "api" else mock.ObrasSocialesMock()
+        )
         self.familiograma: FamiliogramaPort = mock.FamiliogramaMock()
         self.cupones: CuponesPort = (
             CuponesApi(settings) if settings.cupones_modo == "api" else mock.CuponesMock()

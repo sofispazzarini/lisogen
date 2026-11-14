@@ -20,6 +20,10 @@ class Presupuesto(Base):
     cupon_id: Mapped[int | None] = mapped_column(ForeignKey("cupon.id"), unique=True)
     descuento_cupon_usd: Mapped[Decimal] = mapped_column(default=Decimal(0))
     monto_a_pagar_usd: Mapped[Decimal]
+    # Solicitud de cobertura en la API de Obras Sociales (migración 0003) y sus URLs de simulación
+    os_solicitud_id: Mapped[str | None]
+    os_url_autorizar: Mapped[str | None]
+    os_url_rechazar: Mapped[str | None]
     emitido_por: Mapped[int] = mapped_column(ForeignKey("usuario.id"))
     emitido_at: Mapped[datetime] = mapped_column(server_default=func.now())
 

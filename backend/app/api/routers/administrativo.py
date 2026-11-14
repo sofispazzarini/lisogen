@@ -75,17 +75,17 @@ async def emitir_presupuesto(estudio_id: int, admin: Admin, session: Sesion, int
 
 
 @router.post("/estudios/{estudio_id}/autorizacion", response_model=Ok, summary="Registrar Autorización (E17)")
-async def autorizar(estudio_id: int, admin: Admin, session: Sesion) -> Ok:
+async def autorizar(estudio_id: int, admin: Admin, session: Sesion, ints: Ints) -> Ok:
     await finanzas.registrar_autorizacion(
-        session, admin, await obtener_estudio(session, estudio_id, para_actualizar=True)
+        session, ints, admin, await obtener_estudio(session, estudio_id, para_actualizar=True)
     )
     return Ok()
 
 
 @router.post("/estudios/{estudio_id}/rechazo", response_model=Ok, summary="Registrar Rechazo (E18)")
-async def rechazar(estudio_id: int, datos: RechazoEntrada, admin: Admin, session: Sesion) -> Ok:
+async def rechazar(estudio_id: int, datos: RechazoEntrada, admin: Admin, session: Sesion, ints: Ints) -> Ok:
     estudio = await obtener_estudio(session, estudio_id, para_actualizar=True)
-    await finanzas.registrar_rechazo(session, admin, estudio, datos.motivo)
+    await finanzas.registrar_rechazo(session, ints, admin, estudio, datos.motivo)
     return Ok()
 
 

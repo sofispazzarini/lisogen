@@ -27,6 +27,11 @@ class Settings(BaseSettings):
     cupones_api_url: str = "https://vekuhonbpqtzakqbcoph.supabase.co/functions/v1/cupones-api"
     cupones_api_key: str = ""
 
+    # Obras Sociales (API del módulo 6): la clave es del grupo; va en .env, nunca en el repositorio
+    obras_sociales_modo: Literal["mock", "api"] = "mock"
+    obras_sociales_api_url: str = "https://bxsvmfesrtjrqubblgws.supabase.co/functions/v1/api"
+    obras_sociales_api_key: str = ""
+
     # Chatbot (GenLab): la apikey y el token van en .env, nunca en el repositorio
     chatbot_modo: Literal["mock", "api"] = "mock"
     chatbot_url: str = "https://vglzngsrbyagquqqmakf.supabase.co/functions/v1/chat"
