@@ -213,9 +213,9 @@ async def test_obra_social_rechazada_y_reautorizada(
     cliente: httpx.AsyncClient, session: AsyncSession, demo: dict[RolUsuario, Usuario]
 ) -> None:
     medico, admin = demo[RolUsuario.MEDICO_TRATANTE], demo[RolUsuario.ADMINISTRATIVO]
-    osps = await session.scalar(select(ObraSocial.id).where(ObraSocial.codigo_externo == "OSPS"))
+    osps = await session.scalar(select(ObraSocial.id).where(ObraSocial.codigo_externo == "IOMA"))
     pid, paciente = await _alta_paciente(
-        cliente, session, medico, obra_social_id=osps, nro_afiliado="OSPS-778899"
+        cliente, session, medico, obra_social_id=osps, nro_afiliado="IOMA-778899"
     )
     eid = (await flujos.alta_estudio(cliente, session, medico, pid))["id"]
 
@@ -272,7 +272,7 @@ async def test_urgente_sella_lote_con_menos_de_10_y_sale_primero(
     medico, admin = demo[RolUsuario.MEDICO_TRATANTE], demo[RolUsuario.ADMINISTRATIVO]
     transportista, bio = demo[RolUsuario.TRANSPORTISTA], demo[RolUsuario.BIOINFORMATICO]
     palermo = await _palermo(session)
-    osps = await session.scalar(select(ObraSocial.id).where(ObraSocial.codigo_externo == "OSPS"))
+    osps = await session.scalar(select(ObraSocial.id).where(ObraSocial.codigo_externo == "IOMA"))
     nacimiento = (ahora().date() - timedelta(days=45)).isoformat()
     pid, cuenta_padre = await _alta_paciente(
         cliente,

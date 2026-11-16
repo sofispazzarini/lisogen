@@ -5,7 +5,7 @@ Fuente: `docs/Escenarios.pdf` (E1–E33). Cada endpoint y cada vista se trazan a
 | Esc. | Título | Rol | Servicio (`services/`) | Endpoint | Vista (`views/<rol>/`) |
 |---|---|---|---|---|---|
 | E1 | Registrar Médico Tratante | Médico | `registro.registrar_profesional(rol=MEDICO)` | `POST /auth/registro` | `auth/RegistroProfesional` |
-| E2 | Dar de alta Paciente | Médico | `pacientes.dar_de_alta_paciente` (+`domain.reglas.validar_diagnostico`, mail de credenciales) | `POST /medico/pacientes`, `GET /medico/snomed?q=`, `GET /medico/patologias`, `GET /medico/obras-sociales`, `POST /medico/pacientes/buscar` | `medico/AltaPaciente` |
+| E2 | Dar de alta Paciente | Médico | pacientes.dar_de_alta_paciente (+domain.reglas.validar_diagnostico, mail de credenciales), snomed.buscar (API de síntomas SNOMED CT + caché local) | POST /medico/pacientes, GET /medico/snomed?q=, GET /medico/patologias, GET /medico/obras-sociales, POST /medico/pacientes/buscar | medico/AltaPaciente |
 | E3 | Cargar Familiograma | Médico | `pacientes.cargar_familiograma` (API familiograma → PDF en MinIO) | `POST /medico/pacientes` (campo `familiares`), `POST /medico/pacientes/{id}/familiograma` | `medico/AltaPaciente` (sección) |
 | E4 | Dar de alta Estudio | Médico | `estudios.dar_de_alta_estudio` (API bioinformática, genes manuales, hallazgos secundarios, Urgente) | `GET /medico/patologias/{id}/genes`, `POST /medico/estudios`, `GET /medico/estudios`, `GET /medico/estudios/{id}` | `medico/AltaEstudio` |
 | E5 | Asignar Cupón a Paciente | Médico | `cupones.del_medico`, `cupones.asignar_a_paciente` | `GET /medico/cupones`, `POST /medico/cupones/{id}/asignar` | `medico/MisCupones` |

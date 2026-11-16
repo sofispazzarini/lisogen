@@ -24,7 +24,7 @@ from app.schemas.roles import (
     PatologiaSalida,
     ReanalisisEntrada,
 )
-from app.services import consultas, cupones, estudios, pacientes, patologias, resultados
+from app.services import consultas, cupones, estudios, pacientes, patologias, resultados, snomed
 from app.services.comun import auditar
 
 router = APIRouter(
@@ -40,9 +40,11 @@ Medico = Annotated[Usuario, Depends(requiere_rol(RolUsuario.MEDICO_TRATANTE))]
 
 @router.get("/snomed", response_model=list[Concepto], summary="Buscar síntomas SNOMED (E2)")
 async def buscar_snomed(
-    _: Medico, ints: Ints, q: Annotated[str, Query(min_length=2, max_length=60)]
+    _: Medico, session: Sesion, ints: Ints, q: Annotated[str, Query(min_length=2, max_length=60)]
 ) -> list[Concepto]:
-    return [Concepto(concept_id=c.concept_id, termino=c.termino) for c in await ints.snomed.buscar(texto=q)]
+    return [
+        Concepto(concept_id=c.concept_id, termino=c.termino) for c in await snomed.buscar(session, ints, q)
+    ]
 
 
 @router.get(

@@ -59,7 +59,18 @@ async def test_variantes_deterministicas_y_validas(gen: str) -> None:
 # --- Obras sociales, familiograma, Ministerio, FedEx -------------------------------------------
 
 
-@pytest.mark.parametrize(("codigo", "pct"), [("OSPS", 100), ("andina", 70), ("FEDERAL", 50), ("OTRA", 0)])
+@pytest.mark.parametrize(
+    ("codigo", "pct"),
+    [
+        ("OSPS", 100),
+        ("andina", 70),
+        ("FEDERAL", 50),
+        ("IOMA", 100),
+        ("medife", 70),
+        ("OSPACP", 50),
+        ("OTRA", 0),
+    ],
+)
 async def test_cobertura(codigo: str, pct: int) -> None:
     assert await mock.ObrasSocialesMock().cobertura(codigo_obra_social=codigo, cantidad_genes=3) == Decimal(
         pct

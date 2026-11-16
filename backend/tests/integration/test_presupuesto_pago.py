@@ -102,7 +102,7 @@ async def test_paciente_solo_ve_sus_estudios(
     cliente: httpx.AsyncClient, session: AsyncSession, demo: dict[RolUsuario, Usuario]
 ) -> None:
     medico = demo[RolUsuario.MEDICO_TRATANTE]
-    otro, otra_cuenta = await _paciente_con_os(session, medico, "OSPS")
+    otro, otra_cuenta = await _paciente_con_os(session, medico, "IOMA")
     ajeno = await flujos.alta_estudio(cliente, session, medico, otro.id)
     paciente = demo[RolUsuario.PACIENTE]
     for url in (f"/paciente/estudios/{ajeno['id']}", f"/paciente/estudios/{ajeno['id']}/presupuesto"):
@@ -283,7 +283,7 @@ async def test_obra_social_total_autoriza_y_equivale_a_pagado(
     cliente: httpx.AsyncClient, session: AsyncSession, demo: dict[RolUsuario, Usuario]
 ) -> None:
     medico, admin = demo[RolUsuario.MEDICO_TRATANTE], demo[RolUsuario.ADMINISTRATIVO]
-    p, cuenta = await _paciente_con_os(session, medico, "OSPS")
+    p, cuenta = await _paciente_con_os(session, medico, "IOMA")
     eid = (await flujos.alta_estudio(cliente, session, medico, p.id))["id"]
     previo = await flujos.emitir_presupuesto(cliente, admin, eid)
     assert previo["modalidad"] == "OBRA_SOCIAL" and Decimal(previo["cobertura_pct"]) == 100
@@ -314,7 +314,7 @@ async def test_cobertura_parcial_autoriza_y_paga_la_diferencia(
     cliente: httpx.AsyncClient, session: AsyncSession, demo: dict[RolUsuario, Usuario]
 ) -> None:
     medico, admin = demo[RolUsuario.MEDICO_TRATANTE], demo[RolUsuario.ADMINISTRATIVO]
-    p, cuenta = await _paciente_con_os(session, medico, "ANDINA")
+    p, cuenta = await _paciente_con_os(session, medico, "MEDIFE")
     eid = (await flujos.alta_estudio(cliente, session, medico, p.id))["id"]
     previo = await flujos.emitir_presupuesto(cliente, admin, eid)
     assert previo["modalidad"] == "MIXTA" and Decimal(previo["monto_a_pagar_usd"]) == Decimal("150.00")
@@ -332,7 +332,7 @@ async def test_rechazo_y_reautorizacion_con_decision_judicial(
     cliente: httpx.AsyncClient, session: AsyncSession, demo: dict[RolUsuario, Usuario]
 ) -> None:
     medico, admin = demo[RolUsuario.MEDICO_TRATANTE], demo[RolUsuario.ADMINISTRATIVO]
-    p, cuenta = await _paciente_con_os(session, medico, "OSPS")  # cobertura total
+    p, cuenta = await _paciente_con_os(session, medico, "IOMA")  # cobertura total
     eid = (await flujos.alta_estudio(cliente, session, medico, p.id))["id"]
     await flujos.emitir_presupuesto(cliente, admin, eid)
 
@@ -405,7 +405,7 @@ async def test_cupon_no_aplica_con_cobertura_total(
     cliente: httpx.AsyncClient, session: AsyncSession, demo: dict[RolUsuario, Usuario]
 ) -> None:
     medico = demo[RolUsuario.MEDICO_TRATANTE]
-    p, cuenta = await _paciente_con_os(session, medico, "OSPS")
+    p, cuenta = await _paciente_con_os(session, medico, "IOMA")
     eid = (await flujos.alta_estudio(cliente, session, medico, p.id))["id"]
     await flujos.emitir_presupuesto(cliente, demo[RolUsuario.ADMINISTRATIVO], eid)
     cupon = await _cupon_para(cliente, demo, p.id, 10)
@@ -432,7 +432,7 @@ async def test_solo_administrativo_emite(
 
 
 async def _con_obra_social(
-    cliente: httpx.AsyncClient, session: AsyncSession, demo: dict[RolUsuario, Usuario], codigo: str = "OSPS"
+    cliente: httpx.AsyncClient, session: AsyncSession, demo: dict[RolUsuario, Usuario], codigo: str = "IOMA"
 ) -> tuple[int, Usuario, Usuario]:
     medico, admin = demo[RolUsuario.MEDICO_TRATANTE], demo[RolUsuario.ADMINISTRATIVO]
     p, cuenta = await _paciente_con_os(session, medico, codigo)

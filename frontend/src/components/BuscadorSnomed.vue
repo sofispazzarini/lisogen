@@ -4,7 +4,10 @@ import { api, ok, type Esquemas } from '@/api/cliente'
 
 type Concepto = Esquemas['Concepto']
 
-/** Buscador de síntomas SNOMED CT (caché local del backend). `v-model` = conceptos elegidos. */
+/**
+ * Buscador de síntomas SNOMED CT: autocompleta con las sugerencias de la API de terminología (el backend
+ * guarda la clave). `v-model` = conceptos elegidos; el médico sólo elige entre las sugerencias.
+ */
 const props = withDefaults(defineProps<{ origen?: 'medico' | 'gerente'; multiple?: boolean; etiqueta?: string }>(), {
   origen: 'medico',
   multiple: true,
@@ -12,21 +15,28 @@ const props = withDefaults(defineProps<{ origen?: 'medico' | 'gerente'; multiple
 })
 const elegidos = defineModel<Concepto[]>({ default: () => [] })
 
+const MIN_LETRAS = 3 // la API de SNOMED no busca con menos
 const texto = ref('')
 const resultados = ref<Concepto[]>([])
+const sinResultados = ref(false)
 let espera: ReturnType<typeof setTimeout> | null = null
 
 async function buscar(q: string): Promise<void> {
-  if (q.trim().length < 2) {
+  const consulta = q.trim()
+  sinResultados.value = false
+  if (consulta.length < MIN_LETRAS) {
     resultados.value = []
     return
   }
-  const params = { query: { q: q.trim() } }
+  const params = { query: { q: consulta } }
   try {
-    resultados.value =
+    const encontrados =
       props.origen === 'medico'
         ? await ok(api.GET('/medico/snomed', { params }))
         : await ok(api.GET('/gerente/snomed', { params }))
+    if (texto.value.trim() !== consulta) return // el médico siguió escribiendo: llegó tarde
+    resultados.value = encontrados
+    sinResultados.value = encontrados.length === 0
   } catch {
     resultados.value = []
   }
@@ -34,8 +44,9 @@ async function buscar(q: string): Promise<void> {
 
 watch(texto, (q) => {
   if (espera) clearTimeout(espera)
-  espera = setTimeout(() => void buscar(q), 250)
+  espera = setTimeout(() => void buscar(q), 400)
 })
+
 
 function elegir(c: Concepto): void {
   if (elegidos.value.some((e) => e.concept_id === c.concept_id)) return
@@ -58,12 +69,13 @@ function quitar(id: number): void {
         <button type="button" :aria-label="`Quitar ${c.termino}`" @click="quitar(c.concept_id)">×</button>
       </span>
     </div>
-    <input v-model="texto" type="search" placeholder="Escribí al menos 2 letras, p. ej. «acropar»" autocomplete="off" />
+    <input v-model="texto" type="search" placeholder="Escribí al menos 3 letras, p. ej. «cefal» o «me falta el aire»" autocomplete="off" />
     <ul v-if="resultados.length" class="opciones lista-plana" role="listbox">
       <li v-for="c in resultados" :key="c.concept_id">
         <button type="button" class="opcion" @click="elegir(c)">{{ c.termino }} <small class="suave">{{ c.concept_id }}</small></button>
       </li>
     </ul>
+    <p v-if="sinResultados" class="suave" role="status">No encontramos ese síntoma en SNOMED.</p>
   </div>
 </template>
 

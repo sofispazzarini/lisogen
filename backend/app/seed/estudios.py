@@ -5,9 +5,9 @@ historial, los avisos, los PDFs y los movimientos son los mismos que dejaría el
 |---|---|---|---|
 | A | Paciente demo (Martín Ibarra) | Fabry | FINALIZADO (POSITIVO) |
 | B | Paciente demo | Gaucher | POR_PAGAR, con un Cupón del 20% asignado |
-| C | Lucas Ferrari, 2 meses, OSPS | Pompe (Urgente) | EN_ANALISIS_BIOINFORMATICA |
-| D | Valeria Quiroga, Prepaga Andina | MPS 1 | CREADO |
-| E | Jorge Medina, Obra Social Federal | ASMD | PENDIENTE_AUTORIZACION |
+| C | Lucas Ferrari, 2 meses, IOMA | Pompe (Urgente) | EN_ANALISIS_BIOINFORMATICA |
+| D | Valeria Quiroga, Medifé | MPS 1 | CREADO |
+| E | Jorge Medina, OSPACP | ASMD | PENDIENTE_AUTORIZACION |
 | F | Paula Sosa, particular | Fabry | LISTO_PARA_RETIRAR en Caballito |
 | G | Sofía Romero, particular | Fabry | LISTO_PARA_RETIRAR en Belgrano |
 | H | Martín Giménez, particular | Fabry | LISTO_PARA_RETIRAR en Recoleta |
@@ -172,7 +172,7 @@ async def cargar_estudios(session: AsyncSession, ints: Integraciones) -> None:
         email="familia.ferrari@lisogen-demo.com.ar",
         patologia="Pompe",
         sintomas=[398152000, 8186001, 25273001],
-        obra_social="OSPS",
+        obra_social="IOMA",
         resumen="Lactante de 2 meses con hipotonía marcada, cardiomegalia en la radiografía y macroglosia.",
     )
     valeria = await _alta_paciente(
@@ -186,7 +186,7 @@ async def cargar_estudios(session: AsyncSession, ints: Integraciones) -> None:
         email="valeria.quiroga@lisogen-demo.com.ar",
         patologia="MPS 1",
         sintomas=[254069004, 64634000, 84445001],
-        obra_social="ANDINA",
+        obra_social="MEDIFE",
         resumen="Disostosis múltiple, opacidad corneal bilateral y rigidez articular progresiva.",
     )
     jorge = await _alta_paciente(
@@ -200,7 +200,7 @@ async def cargar_estudios(session: AsyncSession, ints: Integraciones) -> None:
         email="jorge.medina@lisogen-demo.com.ar",
         patologia="ASMD",
         sintomas=[36760000, 233703007, 370992007],
-        obra_social="FEDERAL",
+        obra_social="OSPACP",
         resumen="Hepatoesplenomegalia, enfermedad pulmonar intersticial y dislipidemia.",
     )
     paula = await _alta_paciente(

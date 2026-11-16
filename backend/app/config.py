@@ -32,6 +32,11 @@ class Settings(BaseSettings):
     obras_sociales_api_url: str = "https://bxsvmfesrtjrqubblgws.supabase.co/functions/v1/api"
     obras_sociales_api_key: str = ""
 
+    # Síntomas SNOMED CT (API de terminología): la clave es del grupo; va en .env, nunca en el repositorio
+    snomed_modo: Literal["cache", "api"] = "cache"
+    snomed_api_url: str = "https://hwmpslajqivdqeaylhdc.supabase.co/functions/v1/terminologia/sintomas"
+    snomed_api_key: str = ""
+
     # Chatbot (GenLab): la apikey y el token van en .env, nunca en el repositorio
     chatbot_modo: Literal["mock", "api"] = "mock"
     chatbot_url: str = "https://vglzngsrbyagquqqmakf.supabase.co/functions/v1/chat"

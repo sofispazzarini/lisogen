@@ -17,7 +17,7 @@ from app.schemas.roles import (
     PatologiaEntrada,
     PatologiaSalida,
 )
-from app.services import cupones, patologias
+from app.services import cupones, patologias, snomed
 
 router = APIRouter(
     prefix="/gerente",
@@ -33,9 +33,11 @@ async def _patologia(session: Sesion, patologia_id: int) -> PatologiaSalida:
 
 @router.get("/snomed", response_model=list[Concepto], summary="Buscar síntomas SNOMED (E30, E31)")
 async def buscar_snomed(
-    _: Gerente, ints: Ints, q: Annotated[str, Query(min_length=2, max_length=60)]
+    _: Gerente, session: Sesion, ints: Ints, q: Annotated[str, Query(min_length=2, max_length=60)]
 ) -> list[Concepto]:
-    return [Concepto(concept_id=c.concept_id, termino=c.termino) for c in await ints.snomed.buscar(texto=q)]
+    return [
+        Concepto(concept_id=c.concept_id, termino=c.termino) for c in await snomed.buscar(session, ints, q)
+    ]
 
 
 @router.get("/patologias", response_model=list[PatologiaSalida], summary="Patologías")

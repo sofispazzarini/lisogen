@@ -50,7 +50,16 @@ VARIANTES_CONOCIDAS: Final = {
     "MYBPC3": "c.1504C>T (p.Arg502Trp)",
 }
 
-COBERTURAS: Final = {"OSPS": Decimal(100), "ANDINA": Decimal(70), "FEDERAL": Decimal(50)}
+# Mismos porcentajes que informa el catálogo real (IOMA 100, Medifé 70, OSPACP 50); OSPS/ANDINA/FEDERAL
+# quedan como códigos de prueba para los tests.
+COBERTURAS: Final = {
+    "IOMA": Decimal(100),
+    "MEDIFE": Decimal(70),
+    "OSPACP": Decimal(50),
+    "OSPS": Decimal(100),
+    "ANDINA": Decimal(70),
+    "FEDERAL": Decimal(50),
+}
 
 
 def _h(texto: str) -> int:

@@ -5,10 +5,12 @@ from decimal import Decimal
 
 from app.integrations.mock import ChatbotMock, CuponesMock, ObrasSocialesMock
 from app.integrations.ports import (
+    ConceptoSnomed,
     CuponExterno,
     ErrorChatbot,
     ErrorCupones,
     ErrorObraSocial,
+    ErrorSnomed,
     RespuestaChat,
     SolicitudExterna,
 )
@@ -104,3 +106,23 @@ class ObrasSocialesFalla(ObrasSocialesMock):
         return await super().presentar_demanda(
             solicitud=solicitud, nombre_archivo=nombre_archivo, contenido=contenido
         )
+
+
+class SnomedFalso:
+    """API de síntomas que sugiere siempre los mismos conceptos, como si fueran de SNOMED."""
+
+    def __init__(self, conceptos: list[ConceptoSnomed]) -> None:
+        self._conceptos = conceptos
+
+    async def buscar(self, *, texto: str, limite: int = 20) -> list[ConceptoSnomed]:
+        return self._conceptos
+
+
+class SnomedFalla:
+    """API de síntomas que no responde."""
+
+    def __init__(self, error: ErrorSnomed) -> None:
+        self._error = error
+
+    async def buscar(self, *, texto: str, limite: int = 20) -> list[ConceptoSnomed]:
+        raise self._error

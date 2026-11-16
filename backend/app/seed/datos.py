@@ -52,11 +52,11 @@ ESPECIALIDADES: Final = [
     "Traumatología",
 ]
 
-# (nombre, codigo_externo en la API de obras sociales). La cobertura % la informa la API (mock).
+# (nombre, codigo_externo = sigla en el catálogo de la API de obras sociales). La API informa la cobertura %.
 OBRAS_SOCIALES: Final = [
-    ("Obra Social del Personal Sanitario (OSPS)", "OSPS"),
-    ("Prepaga Andina", "ANDINA"),
-    ("Obra Social Federal", "FEDERAL"),
+    ("Instituto de Obra Médico Asistencial (IOMA)", "IOMA"),
+    ("Medifé Asociación Civil", "MEDIFE"),
+    ("Obra Social del Personal Auxiliar de Casas Particulares", "OSPACP"),
 ]
 
 SNOMED: Final[dict[int, str]] = {

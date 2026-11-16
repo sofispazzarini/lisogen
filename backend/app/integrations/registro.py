@@ -33,6 +33,7 @@ from app.integrations.ports import (
     StoragePort,
 )
 from app.integrations.rutas_api import RutasApi
+from app.integrations.snomed_api import SnomedApi
 from app.models import IntegracionLog
 
 CAMPOS_SENSIBLES: Final = frozenset(
@@ -48,6 +49,7 @@ CAMPOS_SENSIBLES: Final = frozenset(
         "qr_pdf",
         "nombre",
         "paciente_nombre",
+        "texto",
         "nombre_archivo",
         "url_autorizar",
         "url_rechazar",
@@ -154,6 +156,8 @@ class Adaptadores:
         self.chatbot: ChatbotPort = (
             ChatbotApi(settings) if settings.chatbot_modo == "api" else mock.ChatbotMock()
         )
+        # Sin API, la búsqueda usa la caché local `snomed_concepto` (ver Integraciones.snomed)
+        self.snomed: SnomedPort | None = SnomedApi(settings) if settings.snomed_modo == "api" else None
         self.mail: MailPort = _crear_mail(settings)
         self.storage: StoragePort = (
             StorageMinio(settings) if settings.storage_modo == "minio" else StorageMemoria()
@@ -197,7 +201,8 @@ class Integraciones:
 
     @property
     def snomed(self) -> SnomedPort:
-        return cast(SnomedPort, self._r(mock.SnomedCacheLocal(self._session), ServicioExterno.SNOMED))
+        remoto = self._a.snomed or mock.SnomedCacheLocal(self._session)
+        return cast(SnomedPort, self._r(remoto, ServicioExterno.SNOMED))
 
     @property
     def cupones(self) -> CuponesPort:

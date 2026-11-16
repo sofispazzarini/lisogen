@@ -118,6 +118,14 @@ class FamiliogramaPort(Protocol):
     async def generar(self, *, familiares: list[FamiliarExterno]) -> bytes: ...
 
 
+class ErrorSnomed(Exception):
+    """La API de síntomas SNOMED CT rechazó el pedido o no respondió (`status` 0 si no hubo respuesta)."""
+
+    def __init__(self, mensaje: str, *, status: int = 0) -> None:
+        super().__init__(mensaje)
+        self.status = status
+
+
 class SnomedPort(Protocol):
     async def buscar(self, *, texto: str, limite: int = 20) -> list[ConceptoSnomed]: ...
 

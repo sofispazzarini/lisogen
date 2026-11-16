@@ -19,6 +19,8 @@ from app.domain.enums import (
     TipoEstudio,
 )
 from app.integrations.infra import MailMemoria
+from app.integrations.ports import ConceptoSnomed, ErrorSnomed
+from app.integrations.registro import Adaptadores
 from app.models import (
     AuditoriaAcceso,
     Cupon,
@@ -30,11 +32,13 @@ from app.models import (
     ObraSocial,
     Paciente,
     Patologia,
+    SnomedConcepto,
     Usuario,
 )
 from app.services.comun import ahora
 from tests import factories
 from tests.factories import headers
+from tests.falsos import SnomedFalla, SnomedFalso
 
 # Síntomas SNOMED del seed
 ACROPARESTESIA, ANGIOQUERATOMA, HIPOHIDROSIS, PROTEINURIA = 79256006, 254788004, 45004005, 29738008
@@ -80,6 +84,57 @@ async def test_buscar_snomed(cliente: httpx.AsyncClient, demo: dict[RolUsuario, 
     assert {c["termino"] for c in r.json()} >= {"Dolor abdominal", "Dolor óseo"}
     r = await cliente.get("/medico/snomed", params={"q": "a"}, headers=h)
     assert r.status_code == 422
+
+
+async def test_snomed_api_copia_lo_sugerido_a_la_cache(
+    cliente: httpx.AsyncClient,
+    session: AsyncSession,
+    adaptadores: Adaptadores,
+    demo: dict[RolUsuario, Usuario],
+) -> None:
+    h = headers(demo[RolUsuario.MEDICO_TRATANTE])
+    adaptadores.snomed = SnomedFalso(
+        [ConceptoSnomed(267036007, "disnea"), ConceptoSnomed(ACROPARESTESIA, "Otro nombre de la API")]
+    )
+    r = await cliente.get("/medico/snomed", params={"q": "me falta el aire"}, headers=h)
+    assert r.status_code == 200
+    assert {c["concept_id"] for c in r.json()} == {267036007, ACROPARESTESIA}
+    nuevo = await session.get(SnomedConcepto, 267036007)
+    assert nuevo is not None and nuevo.termino == "disnea"  # ahora se puede guardar como síntoma
+    existente = await session.get(SnomedConcepto, ACROPARESTESIA)
+    assert existente is not None and existente.termino == "Acroparestesia"  # no pisa el término verificado
+    log = await session.scalar(
+        select(IntegracionLog).where(IntegracionLog.servicio == ServicioExterno.SNOMED)
+    )
+    assert log is not None and log.ok and log.request["texto"] == "[omitido]"
+
+
+async def test_snomed_sin_coincidencias_devuelve_lista_vacia(
+    cliente: httpx.AsyncClient, adaptadores: Adaptadores, demo: dict[RolUsuario, Usuario]
+) -> None:
+    adaptadores.snomed = SnomedFalso([])
+    r = await cliente.get(
+        "/medico/snomed", params={"q": "dolor de muela"}, headers=headers(demo[RolUsuario.MEDICO_TRATANTE])
+    )
+    assert r.status_code == 200 and r.json() == []
+
+
+async def test_si_la_api_de_snomed_falla_se_busca_en_la_cache(
+    cliente: httpx.AsyncClient,
+    session: AsyncSession,
+    adaptadores: Adaptadores,
+    demo: dict[RolUsuario, Usuario],
+) -> None:
+    adaptadores.snomed = SnomedFalla(ErrorSnomed("HTTP 503", status=503))
+    r = await cliente.get(
+        "/medico/snomed", params={"q": "acropar"}, headers=headers(demo[RolUsuario.MEDICO_TRATANTE])
+    )
+    assert r.status_code == 200
+    assert {"concept_id": ACROPARESTESIA, "termino": "Acroparestesia"} in r.json()
+    log = await session.scalar(
+        select(IntegracionLog).where(IntegracionLog.servicio == ServicioExterno.SNOMED)
+    )
+    assert log is not None and not log.ok  # la falla queda registrada
 
 
 async def test_patologias_y_genes_de_la_api(
