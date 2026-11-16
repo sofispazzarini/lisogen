@@ -29,8 +29,12 @@ def _dump(nombre_db: str) -> str:
         capture_output=True,
         text=True,
     ).stdout
-    # Se ignoran comentarios, líneas vacías, \restrict (pg_dump ≥ 16.10) y la tabla de Alembic.
+    # Se ignoran comentarios, líneas vacías, \restrict (pg_dump ≥ 16.10), los `SET (pg_attver=N)` que
+    # escriben los pg_dump nuevos (N es interno de cada base) y la tabla de Alembic.
     salida = re.sub(r"--.*\n", "", salida)
+    salida = re.sub(
+        r"^ALTER TABLE ONLY \S+ ALTER COLUMN \S+ SET \(pg_attver=\d+\);\n", "", salida, flags=re.M
+    )
     salida = re.sub(r"^\\(un)?restrict .*$", "", salida, flags=re.M)
     salida = re.sub(r"CREATE TABLE public\.alembic_version \(.*?\);\n", "", salida, flags=re.S)
     salida = re.sub(
