@@ -1332,13 +1332,21 @@ export interface components {
             /** Provincia */
             provincia: string;
         };
-        /** ChatEntrada */
+        /**
+         * ChatEntrada
+         * @description El Chatbot acepta de 1 a 1000 caracteres, sin datos personales. `conversacion_id` es el que
+         *     devolvió la respuesta anterior; sin él se abre una conversación nueva.
+         */
         ChatEntrada: {
+            /** Conversacion Id */
+            conversacion_id?: string | null;
             /** Pregunta */
             pregunta: string;
         };
         /** ChatMensajeSalida */
         ChatMensajeSalida: {
+            /** Conversacion Id */
+            conversacion_id?: string | null;
             /**
              * Created At
              * Format: date-time
@@ -1350,6 +1358,8 @@ export interface components {
             pregunta: string;
             /** Respuesta */
             respuesta: string | null;
+            /** Tipo */
+            tipo?: string | null;
         };
         /**
          * ClasifVariante
@@ -1385,6 +1395,20 @@ export interface components {
             qr_url: string | null;
             /** Vence At */
             vence_at: string | null;
+        };
+        /**
+         * DestinoSalida
+         * @description Destino del recorrido: el Laboratorio Central, donde terminan todas las Órdenes del Día.
+         */
+        DestinoSalida: {
+            /** Direccion */
+            direccion: string;
+            /** Latitud */
+            latitud: string;
+            /** Longitud */
+            longitud: string;
+            /** Nombre */
+            nombre: string;
         };
         /** DiagnosticoEntrada */
         DiagnosticoEntrada: {
@@ -1600,8 +1624,6 @@ export interface components {
             cantidad: number;
             /** Descuento Pct */
             descuento_pct: number;
-            /** Vence At */
-            vence_at?: string | null;
         };
         /** GenesSugeridos */
         GenesSugeridos: {
@@ -1770,6 +1792,7 @@ export interface components {
         };
         /** OrdenDelDiaSalida */
         OrdenDelDiaSalida: {
+            destino: components["schemas"]["DestinoSalida"];
             /**
              * Fecha
              * Format: date

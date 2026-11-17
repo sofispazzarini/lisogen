@@ -5,9 +5,12 @@ from typing import Literal
 
 
 class ErrorNegocio(Exception):
-    """Violación de una regla de negocio. `status` 422 = datos inválidos; 409 = conflicto de estado."""
+    """Violación de una regla de negocio. `status`: 422 = datos inválidos; 409 = conflicto de estado;
+    502 = falló un módulo externo."""
 
-    def __init__(self, code: str, message: str, status: Literal[401, 403, 404, 409, 422, 429] = 422) -> None:
+    def __init__(
+        self, code: str, message: str, status: Literal[401, 403, 404, 409, 422, 429, 502] = 422
+    ) -> None:
         super().__init__(message)
         self.code = code
         self.message = message

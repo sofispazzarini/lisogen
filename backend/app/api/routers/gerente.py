@@ -17,7 +17,7 @@ from app.schemas.roles import (
     PatologiaEntrada,
     PatologiaSalida,
 )
-from app.services import cupones, patologias
+from app.services import cupones, patologias, snomed
 
 router = APIRouter(
     prefix="/gerente",
@@ -33,9 +33,11 @@ async def _patologia(session: Sesion, patologia_id: int) -> PatologiaSalida:
 
 @router.get("/snomed", response_model=list[Concepto], summary="Buscar síntomas SNOMED (E30, E31)")
 async def buscar_snomed(
-    _: Gerente, ints: Ints, q: Annotated[str, Query(min_length=2, max_length=60)]
+    _: Gerente, session: Sesion, ints: Ints, q: Annotated[str, Query(min_length=2, max_length=60)]
 ) -> list[Concepto]:
-    return [Concepto(concept_id=c.concept_id, termino=c.termino) for c in await ints.snomed.buscar(texto=q)]
+    return [
+        Concepto(concept_id=c.concept_id, termino=c.termino) for c in await snomed.buscar(session, ints, q)
+    ]
 
 
 @router.get("/patologias", response_model=list[PatologiaSalida], summary="Patologías")
@@ -76,9 +78,7 @@ async def listar_cupones(_: Gerente, session: Sesion, ints: Ints) -> list[CuponS
 async def generar_cupones(
     datos: GenerarCuponesEntrada, gerente: Gerente, session: Sesion, ints: Ints
 ) -> list[CuponSalida]:
-    nuevos = await cupones.generar(
-        session, ints, gerente, datos.descuento_pct, datos.cantidad, datos.vence_at
-    )
+    nuevos = await cupones.generar(session, ints, gerente, datos.descuento_pct, datos.cantidad)
     ids = {c.id for c in nuevos}
     return [c for c in await cupones.listar_todos(session, ints) if c.id in ids]
 
@@ -89,6 +89,6 @@ async def medicos(_: Gerente, session: Sesion) -> list[MedicoSalida]:
 
 
 @router.post("/cupones/asignar", response_model=Ok, summary="Asignar Cupones a Médico Tratante (E33)")
-async def asignar_cupones(datos: AsignarCuponesEntrada, _: Gerente, session: Sesion) -> Ok:
-    await cupones.asignar_a_medico(session, datos.cupon_ids, datos.medico_id)
+async def asignar_cupones(datos: AsignarCuponesEntrada, gerente: Gerente, session: Sesion, ints: Ints) -> Ok:
+    await cupones.asignar_a_medico(session, ints, gerente, datos.cupon_ids, datos.medico_id)
     return Ok()

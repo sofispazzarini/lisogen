@@ -17,8 +17,9 @@ from app.domain.enums import (
     TipoArchivo,
 )
 from app.domain.errores import Conflicto, ErrorNegocio, NoEncontrado
-from app.domain.reglas import CalculoPresupuesto, calcular_presupuesto
+from app.domain.reglas import TZ_AR, CalculoPresupuesto, calcular_presupuesto
 from app.integrations.pdf import es_pdf
+from app.integrations.ports import ErrorObraSocial, SolicitudExterna
 from app.integrations.registro import Integraciones
 from app.models import (
     AutorizacionObraSocial,
@@ -38,6 +39,69 @@ from app.services.comun import ahora, guardar_archivo, url_archivo
 from app.services.consultas import pago_vigente
 from app.services.transiciones import transicionar
 
+MAX_DEMANDA_BYTES = 5 * 1024 * 1024  # límite de la API de Obras Sociales para la decisión judicial
+
+
+def _rechazo_os(e: ErrorObraSocial) -> ErrorNegocio:
+    """Traduce lo que respondió la API de Obras Sociales a un error de negocio en español."""
+    if e.incierto or e.status == 0 or e.status >= 500:
+        return ErrorNegocio(
+            "OBRA_SOCIAL_SIN_RESPUESTA",
+            "El módulo de obras sociales no respondió. Esperá unos minutos y revisá el estado de la "
+            "solicitud antes de reintentar.",
+            status=502,
+        )
+    if e.status in (401, 403):
+        return ErrorNegocio(
+            "OBRA_SOCIAL_NO_DISPONIBLE",
+            "El módulo de obras sociales no está disponible por ahora. Intentá de nuevo más tarde.",
+            status=502,
+        )
+    if e.status == 404:
+        return ErrorNegocio(
+            "OBRA_SOCIAL_DESCONOCIDA", "El módulo de obras sociales no reconoce esa Obra Social."
+        )
+    if e.status == 409:
+        return Conflicto(
+            "OBRA_SOCIAL_ESTADO",
+            "La solicitud ya fue resuelta en el módulo de obras sociales o tiene una demanda en curso.",
+        )
+    if e.status == 413:
+        return ErrorNegocio("ARCHIVO_DEMASIADO_GRANDE", "La decisión judicial puede pesar hasta 5 MB.")
+    return ErrorNegocio("OBRA_SOCIAL_RECHAZO", "El módulo de obras sociales rechazó los datos del pedido.")
+
+
+def _guardar_solicitud(p: Presupuesto, sol: SolicitudExterna) -> None:
+    p.os_solicitud_id = sol.id
+    p.os_url_autorizar = sol.url_autorizar or p.os_url_autorizar
+    p.os_url_rechazar = sol.url_rechazar or p.os_url_rechazar
+
+
+async def _solicitud_de(
+    session: AsyncSession, ints: Integraciones, estudio: Estudio, p: Presupuesto
+) -> SolicitudExterna:
+    """La solicitud de cobertura del Presupuesto. Si todavía no existe (Presupuesto anterior a la
+    integración) se crea ahora."""
+    if p.os_solicitud_id:
+        return SolicitudExterna(
+            id=p.os_solicitud_id, estado="", url_autorizar=p.os_url_autorizar, url_rechazar=p.os_url_rechazar
+        )
+    os_ = await session.get(ObraSocial, p.obra_social_id) if p.obra_social_id else None
+    paciente = await session.get(Paciente, estudio.paciente_id)
+    assert os_ is not None and os_.codigo_externo and paciente is not None
+    try:
+        sol = await ints.para_estudio(estudio.id).obras_sociales.solicitar(
+            codigo_obra_social=os_.codigo_externo,
+            paciente_nombre=paciente.nombre_completo,
+            fecha=ahora().astimezone(TZ_AR).date(),
+            referencia=estudio.codigo,
+        )
+    except ErrorObraSocial as e:
+        raise _rechazo_os(e) from e
+    _guardar_solicitud(p, sol)
+    return sol
+
+
 # --- E16 Emitir Presupuesto -------------------------------------------------------------------
 
 
@@ -54,9 +118,12 @@ async def _calcular(
     os_ = await session.get(ObraSocial, paciente.obra_social_id) if paciente.obra_social_id else None
     cobertura = Decimal(0)
     if os_ is not None and os_.codigo_externo:
-        cobertura = await ints.para_estudio(estudio.id).obras_sociales.cobertura(
-            codigo_obra_social=os_.codigo_externo, cantidad_genes=int(cantidad or 0)
-        )
+        try:
+            cobertura = await ints.para_estudio(estudio.id).obras_sociales.cobertura(
+                codigo_obra_social=os_.codigo_externo, cantidad_genes=int(cantidad or 0)
+            )
+        except ErrorObraSocial as e:  # no se emite como particular: cambiaría el monto
+            raise _rechazo_os(e) from e
     calculo = calcular_presupuesto(int(cantidad or 0), os_ is not None, cobertura)
     return calculo, os_ if calculo.modalidad != ModalidadPago.PARTICULAR else None
 
@@ -91,18 +158,19 @@ async def emitir_presupuesto(
     """Particular → POR_PAGAR. Con Obra Social (total o parcial) → PENDIENTE_AUTORIZACION."""
     _exigir_creado(estudio)
     calculo, os_ = await _calcular(session, ints, estudio)
-    session.add(
-        Presupuesto(
-            estudio_id=estudio.id,
-            cantidad_genes=calculo.cantidad_genes,
-            monto_base_usd=calculo.monto_base_usd,
-            modalidad=calculo.modalidad,
-            obra_social_id=os_.id if os_ else None,
-            cobertura_pct=calculo.cobertura_pct,
-            monto_a_pagar_usd=calculo.monto_a_pagar_usd,
-            emitido_por=admin.id,
-        )
+    presupuesto = Presupuesto(
+        estudio_id=estudio.id,
+        cantidad_genes=calculo.cantidad_genes,
+        monto_base_usd=calculo.monto_base_usd,
+        modalidad=calculo.modalidad,
+        obra_social_id=os_.id if os_ else None,
+        cobertura_pct=calculo.cobertura_pct,
+        monto_a_pagar_usd=calculo.monto_a_pagar_usd,
+        emitido_por=admin.id,
     )
+    if os_ is not None:  # con cobertura se pide la autorización a la Obra Social (queda pendiente)
+        await _solicitud_de(session, ints, estudio, presupuesto)
+    session.add(presupuesto)
     if calculo.modalidad == ModalidadPago.PARTICULAR:
         await transicionar(
             session, estudio, EstadoEstudio.POR_PAGAR, admin, "Presupuesto emitido (pago particular)"
@@ -130,13 +198,19 @@ async def presupuesto_de(session: AsyncSession, estudio: Estudio) -> Presupuesto
 # --- E17 / E18 Autorización y Rechazo ---------------------------------------------------------
 
 
-async def _resolver_reautorizacion(session: AsyncSession, estudio: Estudio, estado: EstadoReaut) -> None:
-    sol = await session.scalar(
+async def _reautorizacion_pendiente(
+    session: AsyncSession, estudio: Estudio
+) -> SolicitudReautorizacion | None:
+    return await session.scalar(
         select(SolicitudReautorizacion).where(
             SolicitudReautorizacion.estudio_id == estudio.id,
             SolicitudReautorizacion.estado == EstadoReaut.PENDIENTE,
         )
     )
+
+
+async def _resolver_reautorizacion(session: AsyncSession, estudio: Estudio, estado: EstadoReaut) -> None:
+    sol = await _reautorizacion_pendiente(session, estudio)
     if sol is not None:
         sol.estado, sol.resuelto_at = estado, ahora()
 
@@ -146,12 +220,25 @@ def _exigir_pendiente(estudio: Estudio) -> None:
         raise Conflicto("ESTUDIO_NO_PENDIENTE", "El Estudio no está Pendiente de Autorización.")
 
 
-async def registrar_autorizacion(session: AsyncSession, admin: Usuario, estudio: Estudio) -> None:
+async def registrar_autorizacion(
+    session: AsyncSession, ints: Integraciones, admin: Usuario, estudio: Estudio
+) -> None:
     """E17: Autorizado equivale a pagado; se registra el pago de la Obra Social.
-    SUPUESTO S1: con cobertura parcial el Estudio queda POR_PAGAR por la diferencia."""
+    SUPUESTO S1: con cobertura parcial el Estudio queda POR_PAGAR por la diferencia.
+    La Obra Social se simula en la API: primero se la autoriza ahí y recién después cambia el Estudio.
+    Si hay una demanda (reautorización), la API pide el porcentaje: es el del Presupuesto (S37)."""
     _exigir_pendiente(estudio)
     p = await presupuesto_de(session, estudio)
     assert p.obra_social_id is not None
+    con_demanda = await _reautorizacion_pendiente(session, estudio) is not None
+    sol = await _solicitud_de(session, ints, estudio, p)
+    try:
+        sol = await ints.para_estudio(estudio.id).obras_sociales.autorizar(
+            solicitud=sol, porcentaje=p.cobertura_pct if con_demanda else None
+        )
+    except ErrorObraSocial as e:
+        raise _rechazo_os(e) from e
+    _guardar_solicitud(p, sol)
     session.add(
         AutorizacionObraSocial(
             estudio_id=estudio.id,
@@ -182,11 +269,20 @@ async def registrar_autorizacion(session: AsyncSession, admin: Usuario, estudio:
         await transicionar(session, estudio, EstadoEstudio.AUTORIZADO, admin, "Autorizado por la Obra Social")
 
 
-async def registrar_rechazo(session: AsyncSession, admin: Usuario, estudio: Estudio, motivo: str) -> None:
-    """E18: el Estudio pasa a Rechazado y el Paciente puede pedir la reautorización (E10)."""
+async def registrar_rechazo(
+    session: AsyncSession, ints: Integraciones, admin: Usuario, estudio: Estudio, motivo: str
+) -> None:
+    """E18: el Estudio pasa a Rechazado y el Paciente puede pedir la reautorización (E10).
+    Igual que la Autorización, primero se rechaza en la API de Obras Sociales."""
     _exigir_pendiente(estudio)
     p = await presupuesto_de(session, estudio)
     assert p.obra_social_id is not None
+    sol = await _solicitud_de(session, ints, estudio, p)
+    try:
+        sol = await ints.para_estudio(estudio.id).obras_sociales.rechazar(solicitud=sol, motivo=motivo)
+    except ErrorObraSocial as e:
+        raise _rechazo_os(e) from e
+    _guardar_solicitud(p, sol)
     session.add(
         AutorizacionObraSocial(
             estudio_id=estudio.id,
@@ -217,6 +313,17 @@ async def solicitar_reautorizacion(
         raise Conflicto("ESTUDIO_NO_RECHAZADO", "Sólo se pide reautorización de un Estudio Rechazado.")
     if not es_pdf(contenido):
         raise ErrorNegocio("ARCHIVO_NO_PDF", "Adjuntá la decisión judicial en PDF.")
+    if len(contenido) > MAX_DEMANDA_BYTES:
+        raise ErrorNegocio("ARCHIVO_DEMASIADO_GRANDE", "La decisión judicial puede pesar hasta 5 MB.")
+    p = await presupuesto_de(session, estudio)
+    sol_os = await _solicitud_de(session, ints, estudio, p)
+    try:  # la decisión judicial se presenta como demanda en la API; si falla no se guarda nada
+        sol_os = await ints.para_estudio(estudio.id).obras_sociales.presentar_demanda(
+            solicitud=sol_os, nombre_archivo=nombre or "decision-judicial.pdf", contenido=contenido
+        )
+    except ErrorObraSocial as e:
+        raise _rechazo_os(e) from e
+    _guardar_solicitud(p, sol_os)
     rechazo = await session.scalar(
         select(AutorizacionObraSocial)
         .where(

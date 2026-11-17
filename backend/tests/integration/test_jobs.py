@@ -196,7 +196,9 @@ async def test_mail_que_falla_queda_pendiente(
     session: AsyncSession, adaptadores: Adaptadores, demo: dict[RolUsuario, Usuario]
 ) -> None:
     class MailCaido:
-        async def enviar(self, *, destinatario: str, asunto: str, cuerpo: str) -> None:
+        async def enviar(
+            self, *, destinatario: str, asunto: str, cuerpo: str, clave: str | None = None
+        ) -> None:
             raise ConnectionError("SMTP caído")
 
     adaptadores.mail = MailCaido()

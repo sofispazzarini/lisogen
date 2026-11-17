@@ -28,7 +28,7 @@ from app.models import (
     Usuario,
 )
 from app.schemas.comun import CentroSalida
-from app.schemas.roles import MuestraSalida, OrdenDelDiaSalida, ParadaSalida, UbicacionMuestra
+from app.schemas.roles import DestinoSalida, MuestraSalida, OrdenDelDiaSalida, ParadaSalida, UbicacionMuestra
 from app.services.comun import ahora, feriados
 from app.services.transiciones import transicionar
 
@@ -90,9 +90,16 @@ async def crear_orden(
     )
     if not centros:
         return None
-    orden_ids = await ints.rutas.ordenar_paradas(
-        origen=lab_central(), paradas=[Parada(c.id, Punto(c.latitud, c.longitud)) for c in centros]
-    )
+    # El recorrido es abierto: empieza en uno de los Centros (el de menor id) y termina en el
+    # Laboratorio Central (S29). La API deja fijos el primer y el último punto y ordena los del medio.
+    lab = lab_central()
+    paradas = [Parada(c.id, Punto(c.latitud, c.longitud)) for c in centros]
+    inicio = min(paradas, key=lambda p: p.id)
+    resto = [p for p in paradas if p.id != inicio.id]
+    orden_ids = [
+        inicio.id,
+        *await ints.rutas.ordenar_paradas(origen=inicio.punto, paradas=resto, destino=lab),
+    ]
     orden = OrdenDelDia(transportista_id=transportista.usuario_id, fecha=fecha)
     session.add(orden)
     await session.flush()
@@ -177,11 +184,18 @@ async def orden_del_dia(
         .join(OrdenDelDiaParada, OrdenDelDiaParada.id == Muestra.parada_id)
         .where(OrdenDelDiaParada.orden_id == orden.id, Muestra.estado == EstadoMuestra.EN_CAMINO_LAB_CENTRAL)
     )
+    lab = lab_central()
     return OrdenDelDiaSalida(
         id=orden.id,
         fecha=orden.fecha,
         provincia=provincia.nombre,
         paradas=paradas,
+        destino=DestinoSalida(
+            nombre="Laboratorio Central",
+            direccion="Calle 62 N° 555, La Plata",
+            latitud=lab.latitud,
+            longitud=lab.longitud,
+        ),
         muestras_en_camino=int(en_camino or 0),
         llegada_lab_at=orden.llegada_lab_at,
     )

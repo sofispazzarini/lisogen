@@ -8,6 +8,8 @@ import { usarAccion, usarCarga } from '@/utils/composables'
 const { datos: mensajes, cargando, error } = usarCarga(() => ok(api.GET('/paciente/chatbot')))
 const { enCurso, error: errorEnvio, ejecutar } = usarAccion()
 const pregunta = ref('')
+/** El servicio recuerda los últimos intercambios si le mandamos el id de la conversación. */
+const conversacionId = ref<string | null>(null)
 const conversacion = ref<HTMLElement | null>(null)
 
 const SUGERENCIAS = ['¿Qué es la enfermedad de Fabry?', '¿Qué es Pompe?', '¿Cómo saco Turno?', '¿Cuándo tengo el Resultado?']
@@ -15,8 +17,11 @@ const SUGERENCIAS = ['¿Qué es la enfermedad de Fabry?', '¿Qué es Pompe?', '�
 /** E14: el chatbot responde sobre las cinco Patologías y no deriva a una persona. */
 async function enviar(texto = pregunta.value): Promise<void> {
   if (!texto.trim()) return
-  const m = await ejecutar(() => ok(api.POST('/paciente/chatbot', { body: { pregunta: texto.trim() } })))
+  const m = await ejecutar(() =>
+    ok(api.POST('/paciente/chatbot', { body: { pregunta: texto.trim(), conversacion_id: conversacionId.value } })),
+  )
   if (m) {
+    conversacionId.value = m.conversacion_id ?? null
     mensajes.value = [...(mensajes.value ?? []), m]
     pregunta.value = ''
     await nextTick()
@@ -32,7 +37,14 @@ async function enviar(texto = pregunta.value): Promise<void> {
         <h1>Chatbot</h1>
         <p>Preguntá sobre Fabry, Pompe, MPS 1, Gaucher, ASMD o sobre tu Estudio. Es información general.</p>
       </div>
+      <button class="boton boton--chico" type="button" :disabled="enCurso || !conversacionId" @click="conversacionId = null">
+        Nueva conversación
+      </button>
     </div>
+    <Alerta tipo="info">
+      Es un asistente automático y no reemplaza a un médico. No escribas datos personales (nombre, DNI, mail,
+      teléfono ni resultados de estudios).
+    </Alerta>
     <div class="tarjeta chat">
       <Estado :cargando="cargando" :error="error">
         <div ref="conversacion" class="conversacion" aria-live="polite">
@@ -47,7 +59,7 @@ async function enviar(texto = pregunta.value): Promise<void> {
         <button v-for="s in SUGERENCIAS" :key="s" class="boton boton--chico" type="button" :disabled="enCurso" @click="enviar(s)">{{ s }}</button>
       </div>
       <form class="fila" @submit.prevent="enviar()">
-        <input v-model="pregunta" maxlength="500" placeholder="Escribí tu pregunta" aria-label="Pregunta" style="flex: 1" />
+        <input v-model="pregunta" maxlength="1000" placeholder="Escribí tu pregunta" aria-label="Pregunta" style="flex: 1" />
         <button class="boton boton--primario" type="submit" :disabled="enCurso || !pregunta.trim()">Enviar</button>
       </form>
       <Alerta v-if="errorEnvio" tipo="error">{{ errorEnvio }}</Alerta>

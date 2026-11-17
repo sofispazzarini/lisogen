@@ -11,6 +11,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.domain.enums import ConceptoMov, EstadoEstudio, EstadoMuestra, EstadoTurno, RolUsuario
 from app.domain.errores import Conflicto
 from app.domain.reglas import TZ_AR
+from app.integrations.ports import ErrorChatbot
+from app.integrations.registro import Adaptadores
 from app.models import (
     CentroExtraccion,
     Estudio,
@@ -25,6 +27,7 @@ from app.services.extracciones import registrar_extraccion
 from app.services.turnos import registrar_inasistencia
 from tests import factories, flujos
 from tests.factories import headers
+from tests.falsos import ChatbotFalla
 from tests.flujos import ok
 
 
@@ -58,7 +61,7 @@ async def test_centros_y_agenda(
 ) -> None:
     h = headers(demo[RolUsuario.PACIENTE])
     centros = await ok(await cliente.get("/paciente/centros", headers=h))
-    assert len(centros) == 10 and all(c["latitud"] and c["longitud"] for c in centros)
+    assert len(centros) == 12 and all(c["latitud"] and c["longitud"] for c in centros)
 
     cid = await _centro(session)
     dia = await flujos.proximo_dia_habil(session)
@@ -388,3 +391,62 @@ async def test_chatbot(
     )
     assert log is not None and "Gaucher" not in str(log.request)
     assert (await cliente.post("/paciente/chatbot", json={"pregunta": ""}, headers=h)).status_code == 422
+    assert (await cliente.post("/paciente/chatbot", json={"pregunta": "   "}, headers=h)).status_code == 422
+    largo = {"pregunta": "a" * 1001}
+    assert (await cliente.post("/paciente/chatbot", json=largo, headers=h)).status_code == 422
+
+
+async def test_chatbot_sigue_la_conversacion(
+    cliente: httpx.AsyncClient, demo: dict[RolUsuario, Usuario]
+) -> None:
+    h = headers(demo[RolUsuario.PACIENTE])
+    primera = await ok(
+        await cliente.post("/paciente/chatbot", json={"pregunta": "¿Qué es Fabry?"}, headers=h)
+    )
+    assert primera["conversacion_id"] and primera["tipo"] == "respuesta"
+    segunda = await ok(
+        await cliente.post(
+            "/paciente/chatbot",
+            json={"pregunta": "¿y Pompe?", "conversacion_id": primera["conversacion_id"]},
+            headers=h,
+        )
+    )
+    assert segunda["conversacion_id"] == primera["conversacion_id"]
+
+
+@pytest.mark.parametrize(
+    ("error", "status", "code", "texto"),
+    [
+        (ErrorChatbot("HTTP 429", status=429, reintentar_en=5), 429, "CHATBOT_OCUPADO", "muchas consultas"),
+        (
+            ErrorChatbot("HTTP 503", status=503, detalle="El chatbot está apagado por el momento."),
+            502,
+            "CHATBOT_APAGADO",
+            "El chatbot está apagado por el momento.",
+        ),
+        (
+            ErrorChatbot("HTTP 401", status=401, detalle="apikey inválida"),
+            502,
+            "CHATBOT_NO_DISPONIBLE",
+            "no está disponible",
+        ),
+        (ErrorChatbot("sin respuesta"), 502, "CHATBOT_NO_DISPONIBLE", "no está disponible"),
+    ],
+)
+async def test_chatbot_con_el_servicio_caido(
+    cliente: httpx.AsyncClient,
+    session: AsyncSession,
+    adaptadores: Adaptadores,
+    demo: dict[RolUsuario, Usuario],
+    error: ErrorChatbot,
+    status: int,
+    code: str,
+    texto: str,
+) -> None:
+    h = headers(demo[RolUsuario.PACIENTE])
+    adaptadores.chatbot = ChatbotFalla(error)
+    r = await cliente.post("/paciente/chatbot", json={"pregunta": "¿Qué es Fabry?"}, headers=h)
+    assert r.status_code == status
+    assert r.json()["code"] == code and texto in r.json()["message"]
+    assert "apikey" not in r.text  # el detalle de un error de configuración no llega al Paciente
+    assert await ok(await cliente.get("/paciente/chatbot", headers=h)) == []  # no se guardó la pregunta

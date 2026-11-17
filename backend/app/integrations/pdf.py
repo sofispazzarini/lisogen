@@ -1,8 +1,11 @@
 """Generador mínimo de PDF (texto, Helvetica, WinAnsi). Evita dependencias pesadas para los documentos
-del sistema: orden de extracción, consentimiento, Resultado, Familiograma y Cupones de los mocks."""
+del sistema: orden de extracción, consentimiento, Resultado, Familiograma y Cupones. Puede dibujar un QR
+(`segno` calcula los módulos; acá se pintan como cuadrados vectoriales)."""
 
 import textwrap
 from collections.abc import Sequence
+
+import segno
 
 _LINEAS_POR_PAGINA = 48
 _ANCHO = 92
@@ -13,7 +16,28 @@ def _escapar(texto: str) -> bytes:
     return crudo.replace(b"\\", b"\\\\").replace(b"(", b"\\(").replace(b")", b"\\)")
 
 
-def generar_pdf(titulo: str, lineas: Sequence[str]) -> bytes:
+_QR_X, _QR_Y, _QR_LADO = 395, 610, 150  # arriba a la derecha de la primera página
+_QR_BORDE = 4  # módulos de zona blanca alrededor, como pide el estándar
+
+
+def _dibujar_qr(contenido: str) -> bytes:
+    """Comandos de PDF que pintan el QR de `contenido`: fondo blanco y un cuadrado negro por módulo."""
+    matriz = segno.make(contenido, error="m", micro=False).matrix
+    total = len(matriz) + 2 * _QR_BORDE
+    lado_modulo = _QR_LADO / total
+    ordenes = [f"q 1 1 1 rg {_QR_X} {_QR_Y} {_QR_LADO} {_QR_LADO} re f 0 0 0 rg".encode()]
+    for fila, modulos in enumerate(matriz):
+        for col, oscuro in enumerate(modulos):
+            if oscuro:
+                x = _QR_X + (col + _QR_BORDE) * lado_modulo
+                y = _QR_Y + _QR_LADO - (fila + _QR_BORDE + 1) * lado_modulo
+                ordenes.append(f"{x:.3f} {y:.3f} {lado_modulo:.3f} {lado_modulo:.3f} re".encode())
+    ordenes.append(b"f Q")
+    return b"\n".join(ordenes)
+
+
+def generar_pdf(titulo: str, lineas: Sequence[str], qr: str | None = None) -> bytes:
+    """`qr`: texto que se codifica en un QR dibujado en la primera página (opcional)."""
     envueltas: list[str] = []
     for linea in lineas:
         envueltas.extend(textwrap.wrap(linea, _ANCHO) or [""])
@@ -31,6 +55,8 @@ def generar_pdf(titulo: str, lineas: Sequence[str]) -> bytes:
     objetos.append(b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>")
     for n, pagina in enumerate(paginas):
         flujo = [b"BT /F2 16 Tf 56 790 Td (" + _escapar(titulo) + b") Tj ET"]
+        if qr is not None and n == 0:
+            flujo.append(_dibujar_qr(qr))
         flujo.append(b"BT /F1 10 Tf 56 760 Td 14 TL")
         for linea in pagina:
             flujo.append(b"(" + _escapar(linea) + b") Tj T*")

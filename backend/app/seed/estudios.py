@@ -1,14 +1,19 @@
-"""Seis Estudios de ejemplo en distintos Estados, uno Urgente. Se arman con los servicios reales, así el
+"""Ocho Estudios de ejemplo en distintos Estados, uno Urgente. Se arman con los servicios reales, así el
 historial, los avisos, los PDFs y los movimientos son los mismos que dejaría el uso del sistema.
 
 | Estudio | Paciente | Patología | Estado final |
 |---|---|---|---|
 | A | Paciente demo (Martín Ibarra) | Fabry | FINALIZADO (POSITIVO) |
 | B | Paciente demo | Gaucher | POR_PAGAR, con un Cupón del 20% asignado |
-| C | Lucas Ferrari, 2 meses, OSPS | Pompe (Urgente) | EN_ANALISIS_BIOINFORMATICA |
-| D | Valeria Quiroga, Prepaga Andina | MPS 1 | CREADO |
-| E | Jorge Medina, Obra Social Federal | ASMD | PENDIENTE_AUTORIZACION |
+| C | Lucas Ferrari, 2 meses, IOMA | Pompe (Urgente) | EN_ANALISIS_BIOINFORMATICA |
+| D | Valeria Quiroga, Medifé | MPS 1 | CREADO |
+| E | Jorge Medina, OSPACP | ASMD | PENDIENTE_AUTORIZACION |
 | F | Paula Sosa, particular | Fabry | LISTO_PARA_RETIRAR en Caballito |
+| G | Sofía Romero, particular | Fabry | LISTO_PARA_RETIRAR en Belgrano |
+| H | Martín Giménez, particular | Fabry | LISTO_PARA_RETIRAR en Recoleta |
+
+F, G y H dejan tres Centros de CABA con Muestras listas: la Orden del Día de hoy tiene tres paradas y se
+ordena con la API de optimización de recorridos.
 """
 
 from datetime import UTC, date, datetime, timedelta
@@ -152,6 +157,8 @@ async def cargar_estudios(session: AsyncSession, ints: Integraciones) -> None:
     assert demo is not None
     palermo = await _id(session, CentroExtraccion, nombre="Centro de Extracción Palermo")
     caballito = await _id(session, CentroExtraccion, nombre="Centro de Extracción Caballito")
+    belgrano = await _id(session, CentroExtraccion, nombre="Centro de Extracción Belgrano")
+    recoleta = await _id(session, CentroExtraccion, nombre="Centro de Extracción Recoleta")
     dia1, dia2 = await _dias_habiles(session, 2)
 
     lucas = await _alta_paciente(
@@ -165,7 +172,7 @@ async def cargar_estudios(session: AsyncSession, ints: Integraciones) -> None:
         email="familia.ferrari@lisogen-demo.com.ar",
         patologia="Pompe",
         sintomas=[398152000, 8186001, 25273001],
-        obra_social="OSPS",
+        obra_social="IOMA",
         resumen="Lactante de 2 meses con hipotonía marcada, cardiomegalia en la radiografía y macroglosia.",
     )
     valeria = await _alta_paciente(
@@ -179,7 +186,7 @@ async def cargar_estudios(session: AsyncSession, ints: Integraciones) -> None:
         email="valeria.quiroga@lisogen-demo.com.ar",
         patologia="MPS 1",
         sintomas=[254069004, 64634000, 84445001],
-        obra_social="ANDINA",
+        obra_social="MEDIFE",
         resumen="Disostosis múltiple, opacidad corneal bilateral y rigidez articular progresiva.",
     )
     jorge = await _alta_paciente(
@@ -193,7 +200,7 @@ async def cargar_estudios(session: AsyncSession, ints: Integraciones) -> None:
         email="jorge.medina@lisogen-demo.com.ar",
         patologia="ASMD",
         sintomas=[36760000, 233703007, 370992007],
-        obra_social="FEDERAL",
+        obra_social="OSPACP",
         resumen="Hepatoesplenomegalia, enfermedad pulmonar intersticial y dislipidemia.",
     )
     paula = await _alta_paciente(
@@ -209,9 +216,35 @@ async def cargar_estudios(session: AsyncSession, ints: Integraciones) -> None:
         sintomas=[254788004, 45004005, 60862001],
         resumen="Angioqueratomas en tronco, hipohidrosis y tinnitus. Padre con insuficiencia renal.",
     )
+    sofia = await _alta_paciente(
+        session,
+        ints,
+        medico,
+        dni="36111222",
+        nombre="Sofía",
+        apellido="Romero",
+        nacimiento=date(1987, 3, 14),
+        email="sofia.romero@lisogen-demo.com.ar",
+        patologia="Fabry",
+        sintomas=[254788004, 45004005, 60862001],
+        resumen="Angioqueratomas, hipohidrosis y dolor neuropático en manos y pies.",
+    )
+    martin = await _alta_paciente(
+        session,
+        ints,
+        medico,
+        dni="30444555",
+        nombre="Martín",
+        apellido="Giménez",
+        nacimiento=date(1983, 9, 30),
+        email="martin.gimenez@lisogen-demo.com.ar",
+        patologia="Fabry",
+        sintomas=[254788004, 45004005, 60862001],
+        resumen="Angioqueratomas, tinnitus y antecedente familiar de insuficiencia renal.",
+    )
     cuentas = {
         p.id: await session.get(Usuario, p.usuario_id)
-        for p in (demo, lucas, valeria, jorge, paula)
+        for p in (demo, lucas, valeria, jorge, paula, sofia, martin)
         if p.usuario_id
     }
 
@@ -221,7 +254,7 @@ async def cargar_estudios(session: AsyncSession, ints: Integraciones) -> None:
     await finanzas.emitir_presupuesto(session, ints, admin, a)
     await finanzas.pagar(session, cuenta_demo, a)
     await finanzas.emitir_presupuesto(session, ints, admin, c)
-    await finanzas.registrar_autorizacion(session, admin, c)
+    await finanzas.registrar_autorizacion(session, ints, admin, c)
     turno_a = await turnos.sacar_turno(
         session,
         ints,
@@ -276,9 +309,9 @@ async def cargar_estudios(session: AsyncSession, ints: Integraciones) -> None:
     # B (Gaucher, Paciente demo): Presupuesto emitido y un Cupón listo para aplicar
     b = await _alta_estudio(session, ints, medico, demo, "Gaucher")
     await finanzas.emitir_presupuesto(session, ints, admin, b)
-    generados = await cupones.generar(session, ints, gerente, 20, 3, None)
-    await cupones.asignar_a_medico(session, [c_.id for c_ in generados[:2]], medico.id)
-    await cupones.asignar_a_paciente(session, medico, generados[0].id, demo.id)
+    generados = await cupones.generar(session, ints, gerente, 20, 3)
+    await cupones.asignar_a_medico(session, ints, gerente, [c_.id for c_ in generados[:2]], medico.id)
+    await cupones.asignar_a_paciente(session, ints, medico, generados[0].id, demo.id)
 
     # D (MPS 1): recién dado de alta, para Emitir Presupuesto
     await _alta_estudio(session, ints, medico, valeria, "MPS 1")
@@ -300,4 +333,19 @@ async def cargar_estudios(session: AsyncSession, ints: Integraciones) -> None:
         TurnoEntrada(estudio_id=f.id, centro_id=caballito, inicio=_a_las(dia1, 11)),
     )
     await registrar_extraccion(session, turno_f.id, Decimal("3.5"))
+
+    # G y H (Fabry): Muestras listas en Belgrano y Recoleta → la Orden del Día de hoy tiene tres paradas
+    for paciente, centro, hora in ((sofia, belgrano, 11), (martin, recoleta, 12)):
+        estudio = await _alta_estudio(session, ints, medico, paciente, "Fabry")
+        await finanzas.emitir_presupuesto(session, ints, admin, estudio)
+        cuenta = cuentas[paciente.id]
+        assert cuenta is not None
+        await finanzas.pagar(session, cuenta, estudio)
+        turno = await turnos.sacar_turno(
+            session,
+            ints,
+            cuenta,
+            TurnoEntrada(estudio_id=estudio.id, centro_id=centro, inicio=_a_las(dia1, hora)),
+        )
+        await registrar_extraccion(session, turno.id, Decimal("3.0"))
     await logistica.generar_ordenes_del_dia(session, ints, logistica.hoy())

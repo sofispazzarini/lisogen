@@ -176,7 +176,7 @@ async def chatbot_historial(usuario: PacienteU, session: Sesion) -> list[ChatMen
 async def chatbot_preguntar(
     datos: ChatEntrada, usuario: PacienteU, session: Sesion, ints: Ints
 ) -> ChatMensajeSalida:
-    return await chatbot.preguntar(session, ints, usuario, datos.pregunta)
+    return await chatbot.preguntar(session, ints, usuario, datos.pregunta, datos.conversacion_id)
 
 
 # --- E13 Consultar Resultado ------------------------------------------------------------------

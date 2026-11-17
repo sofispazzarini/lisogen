@@ -52,11 +52,11 @@ ESPECIALIDADES: Final = [
     "Traumatología",
 ]
 
-# (nombre, codigo_externo en la API de obras sociales). La cobertura % la informa la API (mock).
+# (nombre, codigo_externo = sigla en el catálogo de la API de obras sociales). La API informa la cobertura %.
 OBRAS_SOCIALES: Final = [
-    ("Obra Social del Personal Sanitario (OSPS)", "OSPS"),
-    ("Prepaga Andina", "ANDINA"),
-    ("Obra Social Federal", "FEDERAL"),
+    ("Instituto de Obra Médico Asistencial (IOMA)", "IOMA"),
+    ("Medifé Asociación Civil", "MEDIFE"),
+    ("Obra Social del Personal Auxiliar de Casas Particulares", "OSPACP"),
 ]
 
 SNOMED: Final[dict[int, str]] = {
@@ -181,6 +181,20 @@ CENTROS: Final = [
     ),
     ("Centro de Extracción Salta", "Av. Belgrano 900, Salta", "Salta", "-24.782100", "-65.423200"),
     ("Centro de Extracción Neuquén", "Av. Argentina 300, Neuquén", "Neuquén", "-38.951600", "-68.059100"),
+    (
+        "Centro de Extracción Belgrano",
+        "Av. Cabildo 2000, CABA",
+        "Ciudad Autónoma de Buenos Aires",
+        "-34.562000",
+        "-58.456000",
+    ),
+    (
+        "Centro de Extracción Recoleta",
+        "Av. Callao 1500, CABA",
+        "Ciudad Autónoma de Buenos Aires",
+        "-34.595000",
+        "-58.393000",
+    ),
 ]
 
 

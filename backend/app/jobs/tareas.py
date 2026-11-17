@@ -104,10 +104,17 @@ async def despachar_mails(session: AsyncSession, ints: Integraciones, limite: in
     enviados = 0
     for notif, email in filas:
         try:
-            await ints.mail.enviar(destinatario=email, asunto=notif.asunto, cuerpo=notif.cuerpo)
+            await ints.mail.enviar(
+                destinatario=email,
+                asunto=notif.asunto,
+                cuerpo=notif.cuerpo,
+                clave=f"lisogen-notif-{notif.id}",  # estable: un reintento no duplica el aviso
+            )
         except Exception as e:
-            log.warning("No se pudo enviar la notificación %s: %s", notif.id, type(e).__name__)
-            continue
+            log.warning("No se pudo enviar la notificación %s: %s %s", notif.id, type(e).__name__, e)
+            if not getattr(e, "permanente", False):
+                continue
+            # Rechazo definitivo de la API (datos inválidos): se descarta para no trabar la bandeja.
         notif.enviada_at = ahora()
         enviados += 1
     return enviados

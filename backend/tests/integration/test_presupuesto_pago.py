@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.domain.enums import ConceptoMov, EstadoCupon, EstadoReaut, RolUsuario, ServicioExterno
 from app.integrations.pdf import generar_pdf
+from app.integrations.ports import ErrorCupones, ErrorObraSocial
 from app.integrations.registro import Adaptadores
 from app.models import (
     Cupon,
@@ -17,11 +18,13 @@ from app.models import (
     MovimientoFinanciero,
     ObraSocial,
     Paciente,
+    Presupuesto,
     SolicitudReautorizacion,
     Usuario,
 )
 from tests import factories, flujos
 from tests.factories import headers
+from tests.falsos import CuponesFalla, ObrasSocialesFalla
 from tests.flujos import ok
 
 
@@ -99,7 +102,7 @@ async def test_paciente_solo_ve_sus_estudios(
     cliente: httpx.AsyncClient, session: AsyncSession, demo: dict[RolUsuario, Usuario]
 ) -> None:
     medico = demo[RolUsuario.MEDICO_TRATANTE]
-    otro, otra_cuenta = await _paciente_con_os(session, medico, "OSPS")
+    otro, otra_cuenta = await _paciente_con_os(session, medico, "IOMA")
     ajeno = await flujos.alta_estudio(cliente, session, medico, otro.id)
     paciente = demo[RolUsuario.PACIENTE]
     for url in (f"/paciente/estudios/{ajeno['id']}", f"/paciente/estudios/{ajeno['id']}/presupuesto"):
@@ -177,7 +180,7 @@ async def test_aplicar_cupon_por_codigo_y_pagar_con_descuento(
     assert c.estado == EstadoCupon.USADO and c.usado_at is not None
     assert await session.scalar(
         select(IntegracionLog.id).where(
-            IntegracionLog.servicio == ServicioExterno.CUPONES, IntegracionLog.operacion == "marcar_usado"
+            IntegracionLog.servicio == ServicioExterno.CUPONES, IntegracionLog.operacion == "canjear"
         )
     )
 
@@ -207,18 +210,53 @@ async def test_aplicar_cupon_desde_pdf_con_qr(
     )
     r = await cliente.post(
         f"/paciente/estudios/{eid}/cupon",
+        files={"archivo": ("x.pdf", generar_pdf("Sin QR", ["nada"]), "application/pdf")},
+        headers=headers(paciente),
+    )
+    assert r.json()["code"] == "CUPON_INVALIDO"  # un PDF sin la marca del Cupón no se acepta
+    r = await cliente.post(
+        f"/paciente/estudios/{eid}/cupon",
         files={"archivo": ("cupon.pdf", pdf, "application/pdf")},
         headers=headers(paciente),
     )
     pres = await ok(r)
     assert Decimal(pres["monto_a_pagar_usd"]) == Decimal("250.00")
 
+
+@pytest.mark.parametrize(
+    ("error", "estado", "codigo"),
+    [
+        (ErrorCupones("HTTP 409", status=409), 409, "CUPON_CONFLICTO"),
+        (ErrorCupones("HTTP 400", status=400), 422, "CUPON_INVALIDO"),
+        (ErrorCupones("timeout", incierto=True), 502, "CUPONES_SIN_RESPUESTA"),
+    ],
+)
+async def test_cupon_rechazado_por_la_api_no_cambia_el_precio(
+    cliente: httpx.AsyncClient,
+    session: AsyncSession,
+    demo: dict[RolUsuario, Usuario],
+    adaptadores: Adaptadores,
+    error: ErrorCupones,
+    estado: int,
+    codigo: str,
+) -> None:
+    """Si el canje falla en la API de Cupones, el Presupuesto queda igual y el Cupón sigue disponible."""
+    paciente = demo[RolUsuario.PACIENTE]
+    p = await _paciente_demo(session)
+    eid = (await flujos.alta_estudio(cliente, session, demo[RolUsuario.MEDICO_TRATANTE], p.id))["id"]
+    await flujos.emitir_presupuesto(cliente, demo[RolUsuario.ADMINISTRATIVO], eid)
+    cupon = await _cupon_para(cliente, demo, p.id, 50)
+    adaptadores.cupones = CuponesFalla("canjear", error)
     r = await cliente.post(
-        f"/paciente/estudios/{eid}/cupon",
-        files={"archivo": ("x.pdf", generar_pdf("Sin QR", ["nada"]), "application/pdf")},
-        headers=headers(paciente),
+        f"/paciente/estudios/{eid}/cupon", data={"codigo": cupon["codigo"]}, headers=headers(paciente)
     )
-    assert r.json()["code"] in {"CUPON_INVALIDO", "PRESUPUESTO_CON_CUPON"}
+    assert r.status_code == estado and r.json()["code"] == codigo
+    c = await session.get(Cupon, cupon["id"])
+    assert c is not None
+    await session.refresh(c)
+    assert c.estado == EstadoCupon.ASIGNADO_PACIENTE and c.usado_at is None
+    pago = await flujos.pagar(cliente, paciente, eid)
+    assert Decimal(pago["monto_usd"]) == Decimal("500.00")
 
 
 async def test_cupon_de_otro_paciente_no_vale(
@@ -245,7 +283,7 @@ async def test_obra_social_total_autoriza_y_equivale_a_pagado(
     cliente: httpx.AsyncClient, session: AsyncSession, demo: dict[RolUsuario, Usuario]
 ) -> None:
     medico, admin = demo[RolUsuario.MEDICO_TRATANTE], demo[RolUsuario.ADMINISTRATIVO]
-    p, cuenta = await _paciente_con_os(session, medico, "OSPS")
+    p, cuenta = await _paciente_con_os(session, medico, "IOMA")
     eid = (await flujos.alta_estudio(cliente, session, medico, p.id))["id"]
     previo = await flujos.emitir_presupuesto(cliente, admin, eid)
     assert previo["modalidad"] == "OBRA_SOCIAL" and Decimal(previo["cobertura_pct"]) == 100
@@ -276,7 +314,7 @@ async def test_cobertura_parcial_autoriza_y_paga_la_diferencia(
     cliente: httpx.AsyncClient, session: AsyncSession, demo: dict[RolUsuario, Usuario]
 ) -> None:
     medico, admin = demo[RolUsuario.MEDICO_TRATANTE], demo[RolUsuario.ADMINISTRATIVO]
-    p, cuenta = await _paciente_con_os(session, medico, "ANDINA")
+    p, cuenta = await _paciente_con_os(session, medico, "MEDIFE")
     eid = (await flujos.alta_estudio(cliente, session, medico, p.id))["id"]
     previo = await flujos.emitir_presupuesto(cliente, admin, eid)
     assert previo["modalidad"] == "MIXTA" and Decimal(previo["monto_a_pagar_usd"]) == Decimal("150.00")
@@ -294,7 +332,7 @@ async def test_rechazo_y_reautorizacion_con_decision_judicial(
     cliente: httpx.AsyncClient, session: AsyncSession, demo: dict[RolUsuario, Usuario]
 ) -> None:
     medico, admin = demo[RolUsuario.MEDICO_TRATANTE], demo[RolUsuario.ADMINISTRATIVO]
-    p, cuenta = await _paciente_con_os(session, medico, "OSPS")  # cobertura total
+    p, cuenta = await _paciente_con_os(session, medico, "IOMA")  # cobertura total
     eid = (await flujos.alta_estudio(cliente, session, medico, p.id))["id"]
     await flujos.emitir_presupuesto(cliente, admin, eid)
 
@@ -367,7 +405,7 @@ async def test_cupon_no_aplica_con_cobertura_total(
     cliente: httpx.AsyncClient, session: AsyncSession, demo: dict[RolUsuario, Usuario]
 ) -> None:
     medico = demo[RolUsuario.MEDICO_TRATANTE]
-    p, cuenta = await _paciente_con_os(session, medico, "OSPS")
+    p, cuenta = await _paciente_con_os(session, medico, "IOMA")
     eid = (await flujos.alta_estudio(cliente, session, medico, p.id))["id"]
     await flujos.emitir_presupuesto(cliente, demo[RolUsuario.ADMINISTRATIVO], eid)
     cupon = await _cupon_para(cliente, demo, p.id, 10)
@@ -388,3 +426,160 @@ async def test_solo_administrativo_emite(
     for rol in (RolUsuario.PACIENTE, RolUsuario.MEDICO_TRATANTE, RolUsuario.GERENTE_MEDICO):
         r = await cliente.post(f"/administrativo/estudios/{eid}/presupuesto", headers=headers(demo[rol]))
         assert r.status_code == 403
+
+
+# --- API de Obras Sociales: la Obra Social se simula con los botones del Administrativo --------
+
+
+async def _con_obra_social(
+    cliente: httpx.AsyncClient, session: AsyncSession, demo: dict[RolUsuario, Usuario], codigo: str = "IOMA"
+) -> tuple[int, Usuario, Usuario]:
+    medico, admin = demo[RolUsuario.MEDICO_TRATANTE], demo[RolUsuario.ADMINISTRATIVO]
+    p, cuenta = await _paciente_con_os(session, medico, codigo)
+    eid = (await flujos.alta_estudio(cliente, session, medico, p.id))["id"]
+    return eid, admin, cuenta
+
+
+async def test_presupuesto_con_obra_social_crea_la_solicitud(
+    cliente: httpx.AsyncClient, session: AsyncSession, demo: dict[RolUsuario, Usuario]
+) -> None:
+    eid, admin, _ = await _con_obra_social(cliente, session, demo)
+    await flujos.emitir_presupuesto(cliente, admin, eid)
+    p = await session.scalar(select(Presupuesto).where(Presupuesto.estudio_id == eid))
+    assert p is not None and p.os_solicitud_id and p.os_url_autorizar and p.os_url_rechazar
+    log = await session.scalar(
+        select(IntegracionLog).where(
+            IntegracionLog.servicio == ServicioExterno.OBRAS_SOCIALES,
+            IntegracionLog.operacion == "solicitar",
+            IntegracionLog.estudio_id == eid,
+        )
+    )
+    assert log is not None and log.ok
+    assert log.request["paciente_nombre"] == "[omitido]"  # no queda el nombre del Paciente en el log
+    assert "mock://" not in str(log.request) and "mock://" not in str(log.response)  # ni las URLs
+
+
+async def test_presupuesto_particular_no_crea_solicitud(
+    cliente: httpx.AsyncClient, session: AsyncSession, demo: dict[RolUsuario, Usuario]
+) -> None:
+    eid = (
+        await flujos.alta_estudio(
+            cliente, session, demo[RolUsuario.MEDICO_TRATANTE], (await _paciente_demo(session)).id
+        )
+    )["id"]
+    await flujos.emitir_presupuesto(cliente, demo[RolUsuario.ADMINISTRATIVO], eid)
+    p = await session.scalar(select(Presupuesto).where(Presupuesto.estudio_id == eid))
+    assert p is not None and p.os_solicitud_id is None
+
+
+async def test_si_falla_la_cobertura_no_se_emite_como_particular(
+    cliente: httpx.AsyncClient,
+    session: AsyncSession,
+    adaptadores: Adaptadores,
+    demo: dict[RolUsuario, Usuario],
+) -> None:
+    eid, admin, _ = await _con_obra_social(cliente, session, demo)
+    adaptadores.obras_sociales = ObrasSocialesFalla(
+        "cobertura", ErrorObraSocial("sin respuesta", incierto=True)
+    )
+    r = await cliente.post(f"/administrativo/estudios/{eid}/presupuesto", headers=headers(admin))
+    assert r.status_code == 502 and r.json()["code"] == "OBRA_SOCIAL_SIN_RESPUESTA"
+    assert await flujos.estado(cliente, admin, eid) == "CREADO"
+    assert await session.scalar(select(Presupuesto.id).where(Presupuesto.estudio_id == eid)) is None
+
+
+@pytest.mark.parametrize(
+    ("operacion", "error", "status", "code"),
+    [
+        (
+            "autorizar",
+            ErrorObraSocial("HTTP 500", status=500, incierto=True),
+            502,
+            "OBRA_SOCIAL_SIN_RESPUESTA",
+        ),
+        (
+            "autorizar",
+            ErrorObraSocial("HTTP 409", status=409, codigo="ESTADO_INVALIDO"),
+            409,
+            "OBRA_SOCIAL_ESTADO",
+        ),
+        ("autorizar", ErrorObraSocial("HTTP 401", status=401), 502, "OBRA_SOCIAL_NO_DISPONIBLE"),
+        ("rechazar", ErrorObraSocial("HTTP 400", status=400), 422, "OBRA_SOCIAL_RECHAZO"),
+    ],
+)
+async def test_si_la_api_falla_el_estudio_no_cambia(
+    cliente: httpx.AsyncClient,
+    session: AsyncSession,
+    adaptadores: Adaptadores,
+    demo: dict[RolUsuario, Usuario],
+    operacion: str,
+    error: ErrorObraSocial,
+    status: int,
+    code: str,
+) -> None:
+    eid, admin, _ = await _con_obra_social(cliente, session, demo)
+    await flujos.emitir_presupuesto(cliente, admin, eid)
+    adaptadores.obras_sociales = ObrasSocialesFalla(operacion, error)
+    if operacion == "autorizar":
+        r = await cliente.post(f"/administrativo/estudios/{eid}/autorizacion", headers=headers(admin))
+    else:
+        r = await cliente.post(
+            f"/administrativo/estudios/{eid}/rechazo", json={"motivo": "No cubre"}, headers=headers(admin)
+        )
+    assert r.status_code == status and r.json()["code"] == code
+    assert await flujos.estado(cliente, admin, eid) == "PENDIENTE_AUTORIZACION"
+    assert (
+        await session.scalar(select(MovimientoFinanciero.id).where(MovimientoFinanciero.estudio_id == eid))
+        is None
+    )
+
+
+async def test_demanda_rechazada_por_la_api_no_guarda_la_reautorizacion(
+    cliente: httpx.AsyncClient,
+    session: AsyncSession,
+    adaptadores: Adaptadores,
+    demo: dict[RolUsuario, Usuario],
+) -> None:
+    eid, admin, cuenta = await _con_obra_social(cliente, session, demo)
+    await flujos.emitir_presupuesto(cliente, admin, eid)
+    await ok(
+        await cliente.post(
+            f"/administrativo/estudios/{eid}/rechazo", json={"motivo": "No cubre"}, headers=headers(admin)
+        )
+    )
+    adaptadores.obras_sociales = ObrasSocialesFalla(
+        "presentar_demanda", ErrorObraSocial("HTTP 409", status=409, codigo="ESTADO_INVALIDO")
+    )
+    pdf = generar_pdf("Sentencia", ["Se ordena cubrir el Estudio."])
+    r = await cliente.post(
+        f"/paciente/estudios/{eid}/reautorizacion",
+        files={"archivo": ("s.pdf", pdf, "application/pdf")},
+        headers=headers(cuenta),
+    )
+    assert r.status_code == 409 and r.json()["code"] == "OBRA_SOCIAL_ESTADO"
+    assert await flujos.estado(cliente, admin, eid) == "RECHAZADO"
+    assert (
+        await session.scalar(
+            select(SolicitudReautorizacion.id).where(SolicitudReautorizacion.estudio_id == eid)
+        )
+        is None
+    )
+
+
+async def test_la_decision_judicial_no_puede_pasar_de_5_mb(
+    cliente: httpx.AsyncClient, session: AsyncSession, demo: dict[RolUsuario, Usuario]
+) -> None:
+    eid, admin, cuenta = await _con_obra_social(cliente, session, demo)
+    await flujos.emitir_presupuesto(cliente, admin, eid)
+    await ok(
+        await cliente.post(
+            f"/administrativo/estudios/{eid}/rechazo", json={"motivo": "No cubre"}, headers=headers(admin)
+        )
+    )
+    grande = b"%PDF-1.4\n" + b"0" * (5 * 1024 * 1024)
+    r = await cliente.post(
+        f"/paciente/estudios/{eid}/reautorizacion",
+        files={"archivo": ("s.pdf", grande, "application/pdf")},
+        headers=headers(cuenta),
+    )
+    assert r.status_code == 422 and r.json()["code"] == "ARCHIVO_DEMASIADO_GRANDE"

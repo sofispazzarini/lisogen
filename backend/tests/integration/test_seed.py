@@ -34,7 +34,7 @@ async def test_seed_carga_catalogos_y_usuarios(session: AsyncSession) -> None:
     await cargar(session)
     assert await _contar(session, Provincia) == 24
     assert await _contar(session, Patologia) == 5
-    assert await _contar(session, CentroExtraccion) == 10
+    assert await _contar(session, CentroExtraccion) == 12
     assert await _contar(session, ObraSocial) == 3
     assert await _contar(session, Feriado) == 16
     assert await _contar(session, Gen) == 10

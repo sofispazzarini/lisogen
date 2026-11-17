@@ -1,4 +1,5 @@
-"""La migración inicial reproduce schema.sql 1:1 y la 0002 aplica sólo el cambio documentado (D1)."""
+"""La migración inicial reproduce schema.sql 1:1; la 0002 aplica sólo el cambio documentado (D1) y la 0003
+agrega las columnas de la solicitud de Obra Social (DECISIONES S37)."""
 
 import os
 import re
@@ -28,8 +29,12 @@ def _dump(nombre_db: str) -> str:
         capture_output=True,
         text=True,
     ).stdout
-    # Se ignoran comentarios, líneas vacías, \restrict (pg_dump ≥ 16.10) y la tabla de Alembic.
+    # Se ignoran comentarios, líneas vacías, \restrict (pg_dump ≥ 16.10), los `SET (pg_attver=N)` que
+    # escriben los pg_dump nuevos (N es interno de cada base) y la tabla de Alembic.
     salida = re.sub(r"--.*\n", "", salida)
+    salida = re.sub(
+        r"^ALTER TABLE ONLY \S+ ALTER COLUMN \S+ SET \(pg_attver=\d+\);\n", "", salida, flags=re.M
+    )
     salida = re.sub(r"^\\(un)?restrict .*$", "", salida, flags=re.M)
     salida = re.sub(r"CREATE TABLE public\.alembic_version \(.*?\);\n", "", salida, flags=re.S)
     salida = re.sub(
@@ -84,8 +89,28 @@ def test_migracion_0002_pago_anulable_ida_y_vuelta(bases: tuple[str, str]) -> No
     assert _scalar(mig, "SELECT count(*) FROM pg_constraint WHERE conname='pago_presupuesto_id_key'") == 1
     command.downgrade(cfg, "base")
     assert _scalar(mig, "SELECT count(*) FROM pg_tables WHERE schemaname='public'") == 1  # alembic_version
-    command.upgrade(cfg, "head")
+    command.upgrade(cfg, "0002_pago_anulable")
     assert _scalar(mig, "SELECT version_num FROM alembic_version") == "0002_pago_anulable"
+
+
+def _columnas_os(nombre_db: str) -> object:
+    return _scalar(
+        nombre_db,
+        "SELECT count(*) FROM information_schema.columns WHERE table_name='presupuesto' "
+        "AND column_name IN ('os_solicitud_id', 'os_url_autorizar', 'os_url_rechazar')",
+    )
+
+
+def test_migracion_0003_solicitud_obra_social_ida_y_vuelta(bases: tuple[str, str]) -> None:
+    _, mig = bases
+    cfg = alembic_config(mig)
+    command.upgrade(cfg, "head")
+    assert _scalar(mig, "SELECT version_num FROM alembic_version") == "0003_solicitud_obra_social"
+    assert _columnas_os(mig) == 3
+    command.downgrade(cfg, "0002_pago_anulable")
+    assert _columnas_os(mig) == 0
+    command.upgrade(cfg, "head")
+    assert _columnas_os(mig) == 3
 
 
 def test_schema_tiene_todas_las_tablas_del_contrato(bases: tuple[str, str]) -> None:

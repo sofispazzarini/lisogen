@@ -14,7 +14,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import Settings, get_settings
 from app.domain.enums import ServicioExterno
 from app.integrations import mock
+from app.integrations.chatbot_api import ChatbotApi
+from app.integrations.cupones_api import CuponesApi
 from app.integrations.infra import MailMemoria, MailSmtp, StorageMemoria, StorageMinio
+from app.integrations.mail_api import MailApi
+from app.integrations.obras_sociales_api import ObrasSocialesApi
 from app.integrations.ports import (
     BioinformaticaPort,
     ChatbotPort,
@@ -28,10 +32,28 @@ from app.integrations.ports import (
     SnomedPort,
     StoragePort,
 )
+from app.integrations.rutas_api import RutasApi
+from app.integrations.snomed_api import SnomedApi
 from app.models import IntegracionLog
 
 CAMPOS_SENSIBLES: Final = frozenset(
-    {"destinatario", "asunto", "cuerpo", "familiares", "csv", "pregunta", "contenido", "qr_pdf", "nombre"}
+    {
+        "destinatario",
+        "asunto",
+        "cuerpo",
+        "familiares",
+        "csv",
+        "pregunta",
+        "respuesta",
+        "contenido",
+        "qr_pdf",
+        "nombre",
+        "paciente_nombre",
+        "texto",
+        "nombre_archivo",
+        "url_autorizar",
+        "url_rechazar",
+    }
 )
 
 
@@ -106,19 +128,37 @@ class _Registrado:
         return llamar
 
 
+def _crear_mail(settings: Settings) -> MailPort:
+    if settings.mail_modo == "api":
+        return MailApi(settings, demo=MailSmtp(settings))
+    return MailSmtp(settings) if settings.mail_modo == "smtp" else MailMemoria()
+
+
 class Adaptadores:
     """Instancias sin estado de sesión (se crean una vez por proceso)."""
 
     def __init__(self, settings: Settings) -> None:
         self.bioinformatica: BioinformaticaPort = mock.BioinformaticaMock()
-        self.obras_sociales: ObrasSocialesPort = mock.ObrasSocialesMock()
+        self.obras_sociales: ObrasSocialesPort = (
+            ObrasSocialesApi(settings) if settings.obras_sociales_modo == "api" else mock.ObrasSocialesMock()
+        )
         self.familiograma: FamiliogramaPort = mock.FamiliogramaMock()
-        self.cupones: CuponesPort = mock.CuponesMock(sin_qr=settings.mock_cupones_sin_qr)
+        self.cupones: CuponesPort = (
+            CuponesApi(settings) if settings.cupones_modo == "api" else mock.CuponesMock()
+        )
         self.fedex: FedexPort = mock.FedexMock()
         self.ministerio: MinisterioSaludPort = mock.MinisterioSaludMock()
-        self.rutas: OptimizacionRutasPort = mock.OptimizacionRutasMock()
-        self.chatbot: ChatbotPort = mock.ChatbotMock()
-        self.mail: MailPort = MailSmtp(settings) if settings.mail_modo == "smtp" else MailMemoria()
+        self.rutas: OptimizacionRutasPort = (
+            RutasApi(settings, respaldo=mock.OptimizacionRutasMock())
+            if settings.rutas_modo == "api"
+            else mock.OptimizacionRutasMock()
+        )
+        self.chatbot: ChatbotPort = (
+            ChatbotApi(settings) if settings.chatbot_modo == "api" else mock.ChatbotMock()
+        )
+        # Sin API, la búsqueda usa la caché local `snomed_concepto` (ver Integraciones.snomed)
+        self.snomed: SnomedPort | None = SnomedApi(settings) if settings.snomed_modo == "api" else None
+        self.mail: MailPort = _crear_mail(settings)
         self.storage: StoragePort = (
             StorageMinio(settings) if settings.storage_modo == "minio" else StorageMemoria()
         )
@@ -161,7 +201,8 @@ class Integraciones:
 
     @property
     def snomed(self) -> SnomedPort:
-        return cast(SnomedPort, self._r(mock.SnomedCacheLocal(self._session), ServicioExterno.SNOMED))
+        remoto = self._a.snomed or mock.SnomedCacheLocal(self._session)
+        return cast(SnomedPort, self._r(remoto, ServicioExterno.SNOMED))
 
     @property
     def cupones(self) -> CuponesPort:
