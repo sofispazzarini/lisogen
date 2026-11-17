@@ -1,5 +1,6 @@
-"""La migración inicial reproduce schema.sql 1:1; la 0002 aplica sólo el cambio documentado (D1) y la 0003
-agrega las columnas de la solicitud de Obra Social (DECISIONES S37)."""
+"""La migración inicial reproduce schema.sql 1:1; la 0002 aplica sólo el cambio documentado (D1), la
+0003 agrega las columnas de la solicitud de Obra Social (DECISIONES S37) y la 0004 el id del retiro de
+FedEx (D2)."""
 
 import os
 import re
@@ -93,6 +94,21 @@ def test_migracion_0002_pago_anulable_ida_y_vuelta(bases: tuple[str, str]) -> No
     assert _scalar(mig, "SELECT version_num FROM alembic_version") == "0002_pago_anulable"
 
 
+def test_migracion_0004_fedex_retiro_ida_y_vuelta(bases: tuple[str, str]) -> None:
+    _, mig = bases
+    cfg = alembic_config(mig)
+    columna = (
+        "SELECT count(*) FROM information_schema.columns "
+        "WHERE table_name='lote' AND column_name='fedex_retiro_id'"
+    )
+    command.upgrade(cfg, "head")
+    assert _scalar(mig, columna) == 1
+    command.downgrade(cfg, "0003_solicitud_obra_social")
+    assert _scalar(mig, columna) == 0
+    command.upgrade(cfg, "head")
+    assert _scalar(mig, columna) == 1
+
+
 def _columnas_os(nombre_db: str) -> object:
     return _scalar(
         nombre_db,
@@ -105,6 +121,7 @@ def test_migracion_0003_solicitud_obra_social_ida_y_vuelta(bases: tuple[str, str
     _, mig = bases
     cfg = alembic_config(mig)
     command.upgrade(cfg, "head")
+    command.downgrade(cfg, "0003_solicitud_obra_social")
     assert _scalar(mig, "SELECT version_num FROM alembic_version") == "0003_solicitud_obra_social"
     assert _columnas_os(mig) == 3
     command.downgrade(cfg, "0002_pago_anulable")

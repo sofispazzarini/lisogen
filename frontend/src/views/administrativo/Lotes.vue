@@ -51,10 +51,11 @@ async function programar(id: number, codigo: string): Promise<void> {
         <p v-if="l.retiro_programado_at" class="suave">
           Retiro programado: <strong>{{ fechaHora(l.retiro_programado_at) }}</strong>
           <template v-if="l.fedex_confirmado_at"> · FedEx confirmó el {{ fechaHora(l.fedex_confirmado_at) }}</template>
+          <template v-if="l.seguimiento_url"> · <a :href="l.seguimiento_url" target="_blank" rel="noopener">Seguimiento en FedEx</a></template>
         </p>
-        <form v-if="l.estado === 'EN_ESPERA_RETIRO'" class="fila" @submit.prevent="programar(l.id, l.codigo)">
+        <form v-if="l.estado === 'EN_ESPERA_RETIRO' && !l.retiro_programado_at" class="fila" @submit.prevent="programar(l.id, l.codigo)">
           <label class="campo">
-            <span>{{ l.retiro_programado_at ? 'Reprogramar retiro' : 'Día y hora del retiro' }}</span>
+            <span>Día y hora del retiro</span>
             <input v-model="momento[l.id]" type="datetime-local" step="900" required />
           </label>
           <button class="boton boton--primario" type="submit" :disabled="enCurso || !momento[l.id]">Programar con FedEx</button>

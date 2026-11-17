@@ -122,7 +122,7 @@ async def despachar_mails(session: AsyncSession, ints: Integraciones, limite: in
 
 async def simular_fedex(session: AsyncSession, ints: Integraciones) -> int:
     """Sólo en modo mock: FedEx "confirma" en la URL del Lote los retiros cuya hora ya pasó (E20 ep. 4)."""
-    if get_settings().integraciones_modo != "mock":
+    if get_settings().fedex_modo != "mock":
         return 0
     vencidos = list(
         await session.scalars(
@@ -138,12 +138,41 @@ async def simular_fedex(session: AsyncSession, ints: Integraciones) -> int:
     return len(vencidos)
 
 
+async def consultar_retiros_fedex(session: AsyncSession, ints: Integraciones) -> int:
+    """Modo real (E20 ep. 4): la API no tiene webhook, así que se consulta el estado de los retiros cuya
+    hora ya pasó. Si falla la consulta de un Lote, se reintenta en la próxima corrida."""
+    vencidos = await session.execute(
+        select(Lote.id, Lote.fedex_retiro_id).where(
+            Lote.estado == EstadoLote.EN_ESPERA_RETIRO,
+            Lote.fedex_retiro_id.is_not(None),
+            Lote.retiro_programado_at <= ahora(),
+        )
+    )
+    retirados = 0
+    for lote_id, retiro_id in vencidos.all():
+        try:
+            estado = await ints.fedex.consultar_retiro(retiro_id=retiro_id)
+        except ErrorNegocio as e:
+            log.warning("No se pudo consultar el retiro del Lote %s: %s", lote_id, e.code)
+            continue
+        if estado == "RETIRADO":
+            await lotes.registrar_retiro(session, lote_id)
+            retirados += 1
+    return retirados
+
+
+async def actualizar_retiros_fedex(session: AsyncSession, ints: Integraciones) -> int:
+    if get_settings().fedex_modo == "api":
+        return await consultar_retiros_fedex(session, ints)
+    return await simular_fedex(session, ints)
+
+
 TAREAS: dict[str, Tarea] = {
     "orden_del_dia": generar_ordenes_del_dia,
     "cierre_de_jornada": cierre_de_jornada,
     "recordatorios": enviar_recordatorios,
     "mails": despachar_mails,
-    "fedex": simular_fedex,
+    "fedex": actualizar_retiros_fedex,
 }
 
 

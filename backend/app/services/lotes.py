@@ -232,6 +232,7 @@ async def _salida(session: AsyncSession, ints: Integraciones, lote: Lote) -> Lot
         sellado_at=lote.sellado_at,
         retiro_programado_at=lote.retiro_programado_at,
         fedex_confirmado_at=lote.fedex_confirmado_at,
+        seguimiento_url=lote.fedex_url,
         csv_url=await url_archivo(session, ints, lote.csv_ministerio_id),
         autorizacion_url=await url_archivo(session, ints, lote.autorizacion_ministerio_id),
     )
@@ -244,34 +245,35 @@ async def listar(session: AsyncSession, ints: Integraciones) -> list[LoteSalida]
     return [await _salida(session, ints, lote) for lote in lotes]
 
 
-def url_webhook(lote: Lote) -> str:
-    """URL que FedEx usa para confirmar el retiro. Lleva un token HMAC: no es adivinable y no tiene
-    datos personales."""
-    base = get_settings().api_public_url.rstrip("/")
-    return f"{base}/integraciones/fedex/lotes/{lote.id}/{security.token_webhook('lote', lote.id)}"
-
-
 async def programar_retiro(
     session: AsyncSession, ints: Integraciones, lote_id: int, momento: datetime
 ) -> LoteSalida:
-    """E20 ep. 1–3: envía a FedEx día, hora y URL del Lote. L–V 9 a 18 sin feriados, también con Urgentes."""
+    """E20 ep. 1–3: envía a FedEx día, hora y lugar. L–V 9 a 18 sin feriados, también con Urgentes.
+    FedEx no permite cancelar ni modificar un retiro, así que no se reprograma (DECISIONES T26)."""
     lote = await session.get(Lote, lote_id, with_for_update=True)
     if lote is None:
         raise NoEncontrado("Lote")
     if lote.estado != EstadoLote.EN_ESPERA_RETIRO:
         raise Conflicto("LOTE_NO_SELLADO", "Sólo se programa el retiro de un Lote En Espera de Retiro.")
+    if lote.retiro_programado_at is not None:
+        raise Conflicto("RETIRO_YA_PROGRAMADO", "El retiro de este Lote ya está programado con FedEx.")
     dia = momento.astimezone(TZ_AR).date()
     validar_horario_retiro(momento, await feriados(session, dia, dia), ahora())
-    lote.fedex_url = url_webhook(lote)
-    await ints.fedex.programar_retiro(fecha_hora=momento, url_lote=lote.fedex_url)
+    retiro = await ints.fedex.programar_retiro(fecha_hora=momento, lugar=get_settings().fedex_lugar_retiro)
+    lote.fedex_retiro_id, lote.fedex_url = retiro.id, retiro.url_seguimiento
     lote.retiro_programado_at = momento
     return await _salida(session, ints, lote)
 
 
 async def confirmar_retiro_fedex(session: AsyncSession, lote_id: int, token: str) -> None:
-    """E20 ep. 4–5: FedEx confirma el retiro en la URL; el Lote y sus Muestras viajan a Corea. Idempotente."""
+    """Webhook del modo mock: valida el token y registra el retiro."""
     if not security.verificar_token_webhook("lote", lote_id, token):
         raise NoEncontrado("Lote")
+    await registrar_retiro(session, lote_id)
+
+
+async def registrar_retiro(session: AsyncSession, lote_id: int) -> None:
+    """E20 ep. 4–5: FedEx retiró el Lote; el Lote y sus Muestras viajan a Corea. Idempotente."""
     lote = await session.get(Lote, lote_id, with_for_update=True)
     if lote is None:
         raise NoEncontrado("Lote")
