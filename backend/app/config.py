@@ -2,11 +2,12 @@ from decimal import Decimal
 from functools import lru_cache
 from typing import Literal
 
+from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+    model_config = SettingsConfigDict(env_file=".env", extra="ignore", hide_input_in_errors=True)
 
     entorno: Literal["dev", "test", "prod"] = "dev"
     database_url: str = "postgresql+asyncpg://lisogen:lisogen@localhost:5432/lisogen"
@@ -43,6 +44,13 @@ class Settings(BaseSettings):
     chatbot_apikey: str = ""
     chatbot_token: str = ""
 
+    # FedEx: "api" consume la API de retiros (DECISIONES T26)
+    fedex_modo: Literal["mock", "api"] = "mock"
+    fedex_api_url: str = ""
+    fedex_usuario: str = ""
+    fedex_password: str = ""
+    fedex_lugar_retiro: str = "La Plata, Buenos Aires"
+
     # Mail (Mailpit en local)
     mail_modo: Literal["smtp", "memoria", "api"] = "smtp"
     mail_api_url: str = ""
@@ -75,6 +83,13 @@ class Settings(BaseSettings):
     rutas_api_url: str = "https://optimizacionapi.vercel.app/api/optimizacion"
 
     scheduler_activo: bool = True
+
+    @model_validator(mode="after")
+    def _fedex_real_configurado(self) -> "Settings":
+        credenciales = self.fedex_api_url and self.fedex_usuario and self.fedex_password
+        if self.fedex_modo == "api" and not credenciales:
+            raise ValueError("FEDEX_MODO=api requiere FEDEX_API_URL, FEDEX_USUARIO y FEDEX_PASSWORD")
+        return self
 
 
 @lru_cache

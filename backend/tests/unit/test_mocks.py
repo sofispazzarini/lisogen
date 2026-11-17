@@ -94,12 +94,13 @@ async def test_ministerio_devuelve_autorizacion_estable() -> None:
     assert es_pdf(a) and b"Muestras declaradas: 2" in a
 
 
-async def test_fedex_tracking_determinístico() -> None:
+async def test_fedex_retiro_determinístico() -> None:
     cuando = datetime(2026, 10, 26, 13, 0, tzinfo=UTC)
-    t1 = await mock.FedexMock().programar_retiro(fecha_hora=cuando, url_lote="https://x/1")
-    assert t1 == await mock.FedexMock().programar_retiro(fecha_hora=cuando, url_lote="https://x/1")
-    assert t1 != await mock.FedexMock().programar_retiro(fecha_hora=cuando, url_lote="https://x/2")
-    assert re.fullmatch(r"FDX\d{12}", t1)
+    r1 = await mock.FedexMock().programar_retiro(fecha_hora=cuando, lugar="La Plata")
+    assert r1 == await mock.FedexMock().programar_retiro(fecha_hora=cuando, lugar="La Plata")
+    assert r1 != await mock.FedexMock().programar_retiro(fecha_hora=cuando, lugar="CABA")
+    assert r1.url_seguimiento.endswith(r1.id)
+    assert await mock.FedexMock().consultar_retiro(retiro_id=r1.id) == "PROGRAMADO"
 
 
 # --- Cupones ----------------------------------------------------------------------------------

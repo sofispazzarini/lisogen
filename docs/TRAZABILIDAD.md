@@ -23,7 +23,7 @@ Fuente: `docs/Escenarios.pdf` (E1–E33). Cada endpoint y cada vista se trazan a
 | E17 | Registrar Autorización OS | Administrativo | `finanzas.registrar_autorizacion` (autoriza en la API; pago de la OS; parcial → diferencia POR_PAGAR) | `POST /administrativo/estudios/{id}/autorizacion`, `GET /administrativo/reautorizaciones` | `administrativo/Autorizaciones` |
 | E18 | Registrar Rechazo OS | Administrativo | `finanzas.registrar_rechazo` (rechaza en la API con el motivo) | `POST /administrativo/estudios/{id}/rechazo` | `administrativo/Autorizaciones` |
 | E19 | Seguir Muestra en mapa | Administrativo | `logistica.buscar_muestras`, `logistica.ubicar_muestra` | `POST /administrativo/muestras/buscar`, `GET /administrativo/muestras/{id}/ubicacion` | `administrativo/SeguirMuestra` (Leaflet) |
-| E20 | Programar retiro FedEx | Administrativo | `lotes.listar`, `lotes.programar_retiro`, `lotes.confirmar_retiro_fedex` (webhook) | `GET /administrativo/lotes`, `POST /administrativo/lotes/{id}/retiro`, `POST /integraciones/fedex/lotes/{id}/{token}` | `administrativo/Lotes` |
+| E20 | Programar retiro FedEx | Administrativo | `lotes.listar`, `lotes.programar_retiro`, `lotes.registrar_retiro` (consulta a FedEx), `lotes.confirmar_retiro_fedex` (webhook, sólo mock) | `GET /administrativo/lotes`, `POST /administrativo/lotes/{id}/retiro`, `POST /integraciones/fedex/lotes/{id}/{token}` (sólo mock) | `administrativo/Lotes` |
 | E21 | Cargar datos crudos | Administrativo | `laboratorio.cargar_datos_crudos` (MinIO, avisa a los Bioinformáticos) | `POST /administrativo/estudios/{id}/datos-crudos` (multipart) | `administrativo/CargarDatosCrudos` |
 | E22 | Solicitar nueva extracción | Administrativo | `laboratorio.solicitar_reextraccion` (sin costo) | `POST /administrativo/estudios/{id}/reextraccion` | `administrativo/NuevaExtraccion` |
 | — | Registro financiero | Administrativo | `finanzas.registro_financiero` | `GET /administrativo/movimientos` | `administrativo/RegistroFinanciero` |
@@ -41,6 +41,6 @@ Fuente: `docs/Escenarios.pdf` (E1–E33). Cada endpoint y cada vista se trazan a
 
 Transversales: `GET /avisos`, `POST /avisos/{id}/leido`, `POST /avisos/leidos` (bandeja de Avisos en cada layout, cualquier rol); `GET /{rol}/estudios` (tabla con badge de Estado y Urgente).
 
-Jobs (`app/jobs/tareas.py`, programados en `app/jobs/scheduler.py`): `orden_del_dia` (06:00 L–V sin feriados, E23) · `cierre_de_jornada` (18:30 L–V: RESERVADO vencido → AUSENTE, +inasistencia; 5 → POR_PAGAR + PERDIDA_POR_INASISTENCIAS, E11) · `recordatorios` (día anterior, E11) · `mails` (bandeja de salida de avisos) · `fedex` (confirmación simulada del retiro, E20, sólo mock).
+Jobs (`app/jobs/tareas.py`, programados en `app/jobs/scheduler.py`): `orden_del_dia` (06:00 L–V sin feriados, E23) · `cierre_de_jornada` (18:30 L–V: RESERVADO vencido → AUSENTE, +inasistencia; 5 → POR_PAGAR + PERDIDA_POR_INASISTENCIAS, E11) · `recordatorios` (día anterior, E11) · `mails` (bandeja de salida de avisos) · `fedex` (E20: consulta los retiros en la API real o los confirma por hora en mock).
 
 Fuera de alcance (PO): tablero de control de gerencia, WhatsApp, pasarela de pago real.

@@ -16,6 +16,7 @@ from app.domain.enums import ServicioExterno
 from app.integrations import mock
 from app.integrations.chatbot_api import ChatbotApi
 from app.integrations.cupones_api import CuponesApi
+from app.integrations.fedex import FedexHttp
 from app.integrations.infra import MailMemoria, MailSmtp, StorageMemoria, StorageMinio
 from app.integrations.mail_api import MailApi
 from app.integrations.obras_sociales_api import ObrasSocialesApi
@@ -146,7 +147,7 @@ class Adaptadores:
         self.cupones: CuponesPort = (
             CuponesApi(settings) if settings.cupones_modo == "api" else mock.CuponesMock()
         )
-        self.fedex: FedexPort = mock.FedexMock()
+        self.fedex: FedexPort = FedexHttp(settings) if settings.fedex_modo == "api" else mock.FedexMock()
         self.ministerio: MinisterioSaludPort = mock.MinisterioSaludMock()
         self.rutas: OptimizacionRutasPort = (
             RutasApi(settings, respaldo=mock.OptimizacionRutasMock())

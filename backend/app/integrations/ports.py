@@ -4,7 +4,7 @@ y toda llamada queda registrada en `integracion_log` (registro.py)."""
 from dataclasses import dataclass
 from datetime import date, datetime
 from decimal import Decimal
-from typing import Protocol
+from typing import Literal, Protocol
 
 
 @dataclass(frozen=True)
@@ -42,6 +42,15 @@ class ErrorCupones(Exception):
         super().__init__(mensaje)
         self.status = status
         self.incierto = incierto
+
+
+EstadoRetiroFedex = Literal["PROGRAMADO", "RETIRADO"]
+
+
+@dataclass(frozen=True)
+class RetiroFedex:
+    id: str
+    url_seguimiento: str
 
 
 @dataclass(frozen=True)
@@ -140,7 +149,9 @@ class CuponesPort(Protocol):
 
 
 class FedexPort(Protocol):
-    async def programar_retiro(self, *, fecha_hora: datetime, url_lote: str) -> str: ...
+    async def programar_retiro(self, *, fecha_hora: datetime, lugar: str) -> RetiroFedex: ...
+
+    async def consultar_retiro(self, *, retiro_id: str) -> EstadoRetiroFedex: ...
 
 
 class MinisterioSaludPort(Protocol):

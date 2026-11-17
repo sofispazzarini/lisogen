@@ -68,7 +68,7 @@ Corren dentro de la API con APScheduler (hora Argentina). Para la demo se pueden
 | `cierre_de_jornada` | L–V 18:30 | Turnos vencidos sin Muestra → Ausente; con 5 inasistencias se pierde el pago |
 | `recordatorios` | cada 15' | Recordatorio del Turno el día anterior a las 9 |
 | `mails` | cada 15" | Envía los avisos por mail pendientes (Mailpit en local) |
-| `fedex` | cada 1' | Sólo con integraciones mock: FedEx confirma los retiros cuya hora ya pasó |
+| `fedex` | cada 1' | Con `FEDEX_MODO=api` consulta los retiros vencidos en la API de FedEx; con `mock` los confirma al llegar la hora |
 
 ## Mapa de escenarios cubiertos
 
@@ -83,7 +83,7 @@ Cada escenario tiene servicio, endpoint, vista y test (detalle en [`docs/TRAZABI
 | Bioinformático | E26 registro · E27 Tomar Estudio · E28 Cargar Variantes | `/bioinformatico` |
 | Gerente Médico | E29 registro · E30/E31 Patologías · E32/E33 Cupones | `/gerente` |
 
-Procesos automáticos (Orden del Día, inasistencias, recordatorios, mails, FedEx simulado): ver "Tareas programadas". Fuera de alcance por decisión del PO: tablero de control de gerencia, WhatsApp y pasarela de pago real.
+Procesos automáticos (Orden del Día, inasistencias, recordatorios, mails, FedEx): ver "Tareas programadas". Fuera de alcance por decisión del PO: tablero de control de gerencia, WhatsApp y pasarela de pago real.
 
 ## Estructura
 

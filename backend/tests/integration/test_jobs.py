@@ -1,4 +1,4 @@
-"""Tareas programadas: Orden del Día, cierre de jornada, recordatorios, despacho de mails y FedEx (mock)."""
+"""Tareas programadas: Orden del Día, cierre de jornada, recordatorios, despacho de mails y FedEx."""
 
 from datetime import datetime, timedelta
 from decimal import Decimal
@@ -8,6 +8,7 @@ from apscheduler.triggers.cron import CronTrigger
 from sqlalchemy import func, select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import get_settings
 from app.domain.enums import (
     CanalNotif,
     EstadoEstudio,
@@ -18,8 +19,11 @@ from app.domain.enums import (
     ServicioExterno,
     TipoArchivo,
 )
+from app.domain.errores import ErrorNegocio
 from app.domain.reglas import TZ_AR
+from app.integrations import mock
 from app.integrations.infra import MailMemoria
+from app.integrations.ports import EstadoRetiroFedex
 from app.integrations.registro import Adaptadores, Integraciones
 from app.jobs import tareas
 from app.jobs.scheduler import PROGRAMACION, crear_scheduler
@@ -255,6 +259,83 @@ async def test_fedex_mock_confirma_retiros_vencidos(
     await session.refresh(lote)
     assert lote.estado == EstadoLote.EN_VIAJE_COREA
     assert estudio.estado == EstadoEstudio.EN_VIAJE_COREA
+
+
+# --- FedEx (API real) -------------------------------------------------------------------------
+
+
+class FedexFalso(mock.FedexMock):
+    def __init__(self, estados: dict[str, EstadoRetiroFedex | Exception]) -> None:
+        self.estados = estados
+        self.consultados: list[str] = []
+
+    async def consultar_retiro(self, *, retiro_id: str) -> EstadoRetiroFedex:
+        self.consultados.append(retiro_id)
+        estado = self.estados[retiro_id]
+        if isinstance(estado, Exception):
+            raise estado
+        return estado
+
+
+async def _lote_con_retiro(
+    session: AsyncSession,
+    demo: dict[RolUsuario, Usuario],
+    retiro_id: str,
+    programado_at: datetime,
+) -> tuple[Lote, Estudio]:
+    medico = demo[RolUsuario.MEDICO_TRATANTE]
+    estudio = await factories.estudio_en(
+        session, await factories.paciente(session, medico), medico, EstadoEstudio.EN_ESPERA_RETIRO
+    )
+    archivo = Archivo(
+        tipo=TipoArchivo.AUTORIZACION_MINISTERIO_PDF,
+        nombre="a.pdf",
+        mime="application/pdf",
+        tamano_bytes=1,
+        storage_key=f"x/{retiro_id}",
+        sha256="0" * 64,
+    )
+    session.add(archivo)
+    await session.flush()
+    lote = Lote(
+        codigo=f"LOTE-{retiro_id}",
+        estado=EstadoLote.EN_ESPERA_RETIRO,
+        sellado_at=ahora(),
+        autorizacion_ministerio_id=archivo.id,
+        retiro_programado_at=programado_at,
+        fedex_retiro_id=retiro_id,
+    )
+    session.add(lote)
+    await session.flush()
+    await session.execute(update(Muestra).where(Muestra.estudio_id == estudio.id).values(lote_id=lote.id))
+    return lote, estudio
+
+
+async def test_consulta_de_retiros_reales(session: AsyncSession, demo: dict[RolUsuario, Usuario]) -> None:
+    pasado = ahora() - timedelta(minutes=1)
+    retirado, estudio = await _lote_con_retiro(session, demo, "retirado", pasado)
+    programado, _ = await _lote_con_retiro(session, demo, "programado", pasado)
+    con_error, _ = await _lote_con_retiro(session, demo, "con-error", pasado)
+    futuro, _ = await _lote_con_retiro(session, demo, "futuro", ahora() + timedelta(hours=2))
+    falso = FedexFalso(
+        {
+            "con-error": ErrorNegocio("FEDEX_NO_DISPONIBLE", "caída", 502),
+            "programado": "PROGRAMADO",
+            "retirado": "RETIRADO",
+        }
+    )
+    adaptadores = Adaptadores(get_settings())
+    adaptadores.fedex = falso
+
+    assert await tareas.consultar_retiros_fedex(session, Integraciones(session, adaptadores)) == 1
+
+    assert set(falso.consultados) == {"retirado", "programado", "con-error"}  # el futuro no se consulta
+    for lote in (retirado, programado, con_error, futuro):
+        await session.refresh(lote)
+    assert retirado.estado == EstadoLote.EN_VIAJE_COREA and retirado.fedex_confirmado_at is not None
+    assert estudio.estado == EstadoEstudio.EN_VIAJE_COREA
+    for lote in (programado, con_error, futuro):
+        assert lote.estado == EstadoLote.EN_ESPERA_RETIRO
 
 
 # --- Programación -----------------------------------------------------------------------------

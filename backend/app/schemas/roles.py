@@ -249,6 +249,7 @@ class LoteSalida(Esquema):
     sellado_at: datetime | None
     retiro_programado_at: datetime | None
     fedex_confirmado_at: datetime | None
+    seguimiento_url: str | None
     csv_url: str | None
     autorizacion_url: str | None
 
