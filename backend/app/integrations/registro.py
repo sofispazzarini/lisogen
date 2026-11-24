@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import Settings, get_settings
 from app.domain.enums import ServicioExterno
 from app.integrations import mock
+from app.integrations.apigen_api import ApigenApi
 from app.integrations.chatbot_api import ChatbotApi
 from app.integrations.cupones_api import CuponesApi
 from app.integrations.infra import MailMemoria, MailSmtp, StorageMemoria, StorageMinio
@@ -50,6 +51,8 @@ CAMPOS_SENSIBLES: Final = frozenset(
         "nombre",
         "paciente_nombre",
         "texto",
+        "nomenclatura",
+        "id_externo",
         "nombre_archivo",
         "url_autorizar",
         "url_rechazar",
@@ -138,7 +141,9 @@ class Adaptadores:
     """Instancias sin estado de sesión (se crean una vez por proceso)."""
 
     def __init__(self, settings: Settings) -> None:
-        self.bioinformatica: BioinformaticaPort = mock.BioinformaticaMock()
+        self.bioinformatica: BioinformaticaPort = (
+            ApigenApi(settings) if settings.apigen_modo == "api" else mock.BioinformaticaMock()
+        )
         self.obras_sociales: ObrasSocialesPort = (
             ObrasSocialesApi(settings) if settings.obras_sociales_modo == "api" else mock.ObrasSocialesMock()
         )

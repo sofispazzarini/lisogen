@@ -66,6 +66,7 @@ async def obras_sociales(_: Medico, session: Sesion) -> list[Opcion]:
     "/patologias/{patologia_id}/genes",
     response_model=GenesSugeridos,
     summary="Genes de la API de bioinformática (E4)",
+    responses={502: {"model": Error}},
 )
 async def genes_sugeridos(patologia_id: int, _: Medico, session: Sesion, ints: Ints) -> GenesSugeridos:
     patologia = await session.get(Patologia, patologia_id)
@@ -129,6 +130,7 @@ async def familiograma(
     response_model=EstudioResumen,
     status_code=status.HTTP_201_CREATED,
     summary="Dar de alta Estudio (E4)",
+    responses={502: {"model": Error}},
 )
 async def alta_estudio(datos: EstudioAlta, medico: Medico, session: Sesion, ints: Ints) -> EstudioResumen:
     estudio = await estudios.dar_de_alta_estudio(session, ints, medico, datos)
@@ -156,6 +158,7 @@ async def detalle_estudio(
     response_model=EstudioResumen,
     status_code=status.HTTP_201_CREATED,
     summary="Solicitar Reanálisis (E6)",
+    responses={502: {"model": Error}},
 )
 async def reanalisis(
     estudio_id: int, datos: ReanalisisEntrada, medico: Medico, session: Sesion, ints: Ints

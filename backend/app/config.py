@@ -22,6 +22,10 @@ class Settings(BaseSettings):
     # Integraciones: "mock" es el único modo implementado (DECISIONES T6)
     integraciones_modo: Literal["mock"] = "mock"
 
+    apigen_modo: Literal["mock", "api"] = "mock"
+    apigen_api_url: str = "https://edmrjmfjklwgazzztjcl.supabase.co/rest/v1"
+    apigen_api_key: str = ""
+
     # Cupones (API de Exoma Care): la clave es del grupo; va en .env, nunca en el repositorio
     cupones_modo: Literal["mock", "api"] = "mock"
     cupones_api_url: str = "https://vekuhonbpqtzakqbcoph.supabase.co/functions/v1/cupones-api"

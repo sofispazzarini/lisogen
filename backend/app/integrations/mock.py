@@ -78,7 +78,9 @@ class BioinformaticaMock:
     async def genes_hallazgos_secundarios(self) -> list[str]:
         return list(GENES_HALLAZGOS_SECUNDARIOS)
 
-    async def variantes_por_gen(self, *, gen: str) -> list[VarianteExterna]:
+    async def variantes_por_gen(
+        self, *, gen: str, texto: str = "", limite: int = 50, offset: int = 0
+    ) -> list[VarianteExterna]:
         gen = gen.upper()
         variantes = []
         if gen in VARIANTES_CONOCIDAS:
@@ -91,7 +93,12 @@ class BioinformaticaMock:
             if ref == alt:
                 alt = bases[(bases.index(ref) + 1) % 4]
             variantes.append(VarianteExterna(f"c.{pos}{ref}>{alt}", f"VAR-{gen}-{i}"))
-        return variantes
+        coincidencias = [v for v in variantes if texto.casefold() in v.nomenclatura.casefold()]
+        return coincidencias[offset : offset + limite]
+
+    async def variante_exacta(self, *, gen: str, nomenclatura: str) -> VarianteExterna | None:
+        variantes = await self.variantes_por_gen(gen=gen)
+        return next((v for v in variantes if v.nomenclatura == nomenclatura), None)
 
 
 class ObrasSocialesMock:
