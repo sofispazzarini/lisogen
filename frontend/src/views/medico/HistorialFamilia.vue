@@ -3,7 +3,7 @@ import { api, ok, type Esquemas } from '@/api/cliente'
 import BadgeEstado from '@/components/BadgeEstado.vue'
 import Estado from '@/components/Estado.vue'
 import { usarCarga } from '@/utils/composables'
-import { fecha, titulo } from '@/utils/formato'
+import { etiquetaParentesco, fecha } from '@/utils/formato'
 
 /** Historial de la familia (SUPUESTO S41): los Pacientes con el mismo número de familia, sus Estudios y
  * resultados, y los familiares que declararon. Sin datos de contacto; cada consulta queda auditada. */
@@ -19,7 +19,7 @@ const RESULTADO: Record<Esquemas['TipoResultado'], string> = {
 }
 
 function parentesco(f: Esquemas['FamiliarSalida']): string {
-  return titulo(f.parentesco) + (f.lado ? ` ${f.lado.toLowerCase()}` : '')
+  return etiquetaParentesco(f.parentesco, f.lado)
 }
 </script>
 
@@ -47,15 +47,15 @@ function parentesco(f: Esquemas['FamiliarSalida']): string {
             </div>
           </div>
           <div v-if="m.estudios.length" class="tabla-contenedor">
-            <table class="tabla">
+            <table class="tabla tabla--apilable">
               <thead><tr><th>Estudio</th><th>Patologías</th><th>Estado</th><th>Resultado</th><th>Fecha</th></tr></thead>
               <tbody>
                 <tr v-for="e in m.estudios" :key="e.codigo">
                   <td>{{ e.codigo }}<template v-if="e.tipo === 'REANALISIS'"> (reanálisis)</template></td>
-                  <td>{{ e.patologias.join(', ') || '—' }}</td>
-                  <td><BadgeEstado :estado="e.estado" /></td>
-                  <td>{{ e.resultado ? RESULTADO[e.resultado] : '—' }}</td>
-                  <td>{{ fecha(e.created_at) }}</td>
+                  <td data-etiqueta="Patologías">{{ e.patologias.join(', ') || '—' }}</td>
+                  <td data-etiqueta="Estado"><BadgeEstado :estado="e.estado" /></td>
+                  <td data-etiqueta="Resultado">{{ e.resultado ? RESULTADO[e.resultado] : '—' }}</td>
+                  <td data-etiqueta="Fecha">{{ fecha(e.created_at) }}</td>
                 </tr>
               </tbody>
             </table>
@@ -65,7 +65,7 @@ function parentesco(f: Esquemas['FamiliarSalida']): string {
             <h3>Familiares declarados</h3>
             <ul class="lista-plana">
               <li v-for="(f, j) in m.familiares_declarados" :key="j">
-                <strong>{{ parentesco(f) }}</strong>: {{ f.nombre }}<template v-if="f.apellido"> {{ f.apellido }}</template>
+                <strong>{{ parentesco(f) }}</strong>: {{ [f.nombre, f.apellido].filter(Boolean).join(' ') }}
                 <span v-if="f.patologia_diagnosticada" class="suave"> · diagnóstico de {{ f.patologia_diagnosticada }}</span>
                 <span v-if="f.sintomas" class="suave"> · {{ f.sintomas }}</span>
               </li>

@@ -77,6 +77,11 @@ body {
   font-family: var(--fuente);
   font-size: 15px;
   line-height: 1.5;
+  overflow-wrap: break-word; /* códigos, mails y URLs largos se cortan en vez de ensanchar la página */
+}
+
+img {
+  max-width: 100%;
 }
 
 a {
@@ -270,6 +275,10 @@ a:focus-visible {
   background: var(--color-superficie-2);
 }
 
+.tabla .celda-monto {
+  text-align: right;
+}
+
 .vacio {
   padding: 24px;
   text-align: center;
@@ -312,9 +321,128 @@ a:focus-visible {
   z-index: 0;
 }
 
+/* Responsive: los hijos de grillas y filas flexibles pueden achicarse por debajo del ancho de su contenido.
+   Sin esto, una tabla o una línea de pasos ancha ensancha toda la página en vez de scrollear dentro de su
+   contenedor (.tabla-contenedor). */
+.pagina > *,
+.grilla-2 > *,
+.formulario > *,
+.encabezado > *,
+.campo > *,
+.fila > * {
+  min-width: 0;
+}
+
+.tabla-contenedor {
+  max-width: 100%;
+  position: relative; /* contiene los textos ocultos (.sr) de los encabezados: si no, estiran la página */
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Tablas apilables: en el celular cada fila pasa a ser una tarjeta con "etiqueta: valor" (data-etiqueta en
+   cada celda), así no hay que scrollear de costado para ver el Estado. La primera celda sin etiqueta hace de
+   título de la tarjeta. */
 @media (max-width: 640px) {
+  .tabla--apilable thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+  }
+
+  .tabla--apilable,
+  .tabla--apilable tbody,
+  .tabla--apilable tr,
+  .tabla--apilable td {
+    display: block;
+    width: 100%;
+  }
+
+  .tabla--apilable tr {
+    padding: 10px 0;
+    border-bottom: 1px solid var(--color-borde);
+  }
+
+  .tabla--apilable tbody tr:hover {
+    background: none;
+  }
+
+  .tabla--apilable td {
+    display: grid;
+    grid-template-columns: minmax(96px, 34%) 1fr;
+    align-items: center;
+    gap: 8px;
+    padding: 3px 0;
+    border: 0;
+  }
+
+  .tabla--apilable td::before {
+    content: attr(data-etiqueta);
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: var(--color-texto-suave);
+  }
+
+  .tabla--apilable td:not([data-etiqueta]) {
+    grid-template-columns: 1fr;
+  }
+
+  .tabla--apilable td > * {
+    justify-self: start; /* badges y botones con su ancho, no estirados a toda la celda */
+  }
+
+  .tabla--apilable td:not([data-etiqueta])::before {
+    content: none;
+  }
+
+  .tabla--apilable td:first-child:not([data-etiqueta]) {
+    font-weight: 600;
+  }
+
+  .tabla--apilable .celda-monto {
+    text-align: left;
+  }
+}
+
+@media (max-width: 640px) {
+  h1 {
+    font-size: 1.3rem;
+  }
+
   .tarjeta {
     padding: 14px;
+  }
+
+  /* En iOS, un campo con letra de menos de 16 px hace zoom al tocarlo */
+  input,
+  select,
+  textarea {
+    font-size: 16px;
+  }
+
+  /* Botones cómodos para el dedo (unos 40 px de alto) */
+  .boton {
+    min-height: 42px;
+  }
+
+  .boton--chico {
+    min-height: 38px;
+  }
+
+  .encabezado > .boton,
+  .encabezado > .fila {
+    width: 100%;
+  }
+
+  .encabezado > .boton {
+    justify-content: center;
+  }
+
+  .tabla th,
+  .tabla td {
+    padding: 8px 10px;
   }
 
   .dato {

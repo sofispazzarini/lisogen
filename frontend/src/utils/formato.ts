@@ -43,3 +43,14 @@ export function sumarDias(iso: string, dias: number): string {
 }
 
 export const titulo = (s: string): string => s.charAt(0).toUpperCase() + s.slice(1).toLowerCase().replaceAll('_', ' ')
+
+const PARENTESCO: Record<string, string> = { TIO: 'Tío', TIA: 'Tía' }
+const FEMENINOS = new Set(['MADRE', 'HERMANA', 'HIJA', 'ABUELA', 'TIA', 'PRIMA'])
+
+/** "Abuela materna", "Tío paterno", "Madre": parentesco del familiar con el lado y la concordancia. */
+export function etiquetaParentesco(parentesco: string, lado?: string | null): string {
+  const base = PARENTESCO[parentesco] ?? titulo(parentesco)
+  if (!lado) return base
+  const sufijo = FEMENINOS.has(parentesco) ? 'a' : 'o'
+  return `${base} ${lado.toLowerCase().slice(0, -1)}${sufijo}`
+}

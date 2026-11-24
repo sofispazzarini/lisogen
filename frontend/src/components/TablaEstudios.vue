@@ -20,7 +20,7 @@ withDefaults(
 
 <template>
   <div class="tabla-contenedor">
-    <table v-if="estudios.length" class="tabla">
+    <table v-if="estudios.length" class="tabla tabla--apilable">
       <thead>
         <tr>
           <th>Estudio</th>
@@ -40,11 +40,11 @@ withDefaults(
             <span v-if="e.tipo === 'REANALISIS'" class="suave"> · Reanálisis</span>
             <BadgeUrgente v-if="e.urgente" class="ml" />
           </td>
-          <td v-if="mostrarPaciente">{{ e.paciente.nombre_completo }}</td>
-          <td v-if="mostrarMedico">{{ e.medico_tratante.nombre_completo }}</td>
-          <td>{{ e.patologias.join(', ') || '—' }}</td>
-          <td><BadgeEstado :estado="e.estado" /></td>
-          <td>{{ fecha(e.created_at) }}</td>
+          <td v-if="mostrarPaciente" data-etiqueta="Paciente">{{ e.paciente.nombre_completo }}</td>
+          <td v-if="mostrarMedico" data-etiqueta="Médico">{{ e.medico_tratante.nombre_completo }}</td>
+          <td data-etiqueta="Patologías">{{ e.patologias.join(', ') || '—' }}</td>
+          <td data-etiqueta="Estado"><BadgeEstado :estado="e.estado" /></td>
+          <td data-etiqueta="Alta">{{ fecha(e.created_at) }}</td>
           <td v-if="$slots.acciones"><slot name="acciones" :estudio="e" /></td>
         </tr>
       </tbody>

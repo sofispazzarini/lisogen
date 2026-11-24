@@ -39,13 +39,13 @@ async function asignar(cuponId: number): Promise<void> {
       <Estado :cargando="cargando" :error="error">
         <p v-if="!disponibles.length" class="vacio">No tenés Cupones disponibles para asignar.</p>
         <div v-else class="tabla-contenedor">
-          <table class="tabla">
+          <table class="tabla tabla--apilable">
             <thead><tr><th>Código</th><th>Descuento</th><th>Vence</th><th>Asignar a</th></tr></thead>
             <tbody>
               <tr v-for="c in disponibles" :key="c.id">
                 <td><code>{{ c.codigo }}</code></td>
-                <td>{{ c.descuento_pct }}%</td>
-                <td>{{ c.vence_at ? fecha(c.vence_at) : 'Sin vencimiento' }}</td>
+                <td data-etiqueta="Descuento">{{ c.descuento_pct }}%</td>
+                <td data-etiqueta="Vence">{{ c.vence_at ? fecha(c.vence_at) : 'Sin vencimiento' }}</td>
                 <td>
                   <form class="fila" @submit.prevent="asignar(c.id)">
                     <select v-model="paraPaciente[c.id]" required aria-label="Paciente">

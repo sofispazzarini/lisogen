@@ -38,16 +38,16 @@ function salir(): void {
           <img src="/favicon.svg" alt="" width="28" height="28" />
           <span>LisoGen</span>
         </RouterLink>
+        <BandejaAvisos class="avisos" />
         <button class="boton boton--chico menu" type="button" :aria-expanded="menuAbierto" aria-controls="nav-principal" @click="menuAbierto = !menuAbierto">
-          Menú
+          {{ menuAbierto ? 'Cerrar' : 'Menú' }}
         </button>
         <nav id="nav-principal" class="nav" :class="{ abierta: menuAbierto }" aria-label="Principal">
           <RouterLink v-for="i in items" :key="i.ruta" :to="i.ruta" :class="{ activo: activo === i.ruta }" :title="i.escenarios ? `Escenarios ${i.escenarios}` : undefined">
             {{ i.texto }}
           </RouterLink>
         </nav>
-        <div class="usuario">
-          <BandejaAvisos />
+        <div class="usuario" :class="{ abierta: menuAbierto }">
           <div class="quien">
             <strong>{{ auth.usuario?.nombre }} {{ auth.usuario?.apellido }}</strong>
             <small v-if="auth.rol">{{ NOMBRE_ROL[auth.rol] }}</small>
@@ -67,21 +67,28 @@ function salir(): void {
 .barra { background: var(--color-superficie); border-bottom: 1px solid var(--color-borde); position: sticky; top: 0; z-index: 500; }
 .barra-interior { max-width: var(--ancho-max); margin: 0 auto; padding: 8px 16px; display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
 .marca { display: flex; align-items: center; gap: 8px; font-weight: 800; font-size: 1.15rem; color: var(--color-primario); text-decoration: none; }
-.nav { display: flex; gap: 4px; flex: 1; flex-wrap: wrap; }
+.nav { display: flex; gap: 4px; flex: 1; flex-wrap: wrap; order: 1; }
 .nav a { padding: 6px 10px; border-radius: var(--radio-chico); text-decoration: none; color: var(--color-texto); font-weight: 500; }
 .nav a:hover { background: var(--color-superficie-2); }
 .nav a.activo { background: var(--color-primario-suave); color: var(--color-primario); font-weight: 700; }
-.usuario { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+.avisos { order: 2; margin-left: auto; }
+.usuario { display: flex; align-items: center; gap: 8px; order: 3; }
 .quien { display: grid; line-height: 1.2; text-align: right; }
 .quien small { color: var(--color-texto-suave); }
 .menu { display: none; }
 .contenido { max-width: var(--ancho-max); margin: 0 auto; padding: 20px 16px 48px; }
 
+/* Celular y tablet: arriba sólo la marca, Avisos y el botón de menú; la navegación y la cuenta van adentro */
 @media (max-width: 860px) {
-  .menu { display: inline-flex; margin-left: auto; }
-  .nav { display: none; order: 3; flex-basis: 100%; flex-direction: column; }
-  .nav.abierta { display: flex; }
-  .usuario { order: 4; flex-basis: 100%; justify-content: space-between; margin-left: 0; }
-  .quien { text-align: left; }
+  .barra-interior { gap: 8px 12px; padding: 8px 12px; }
+  .avisos { order: 1; }
+  .menu { display: inline-flex; order: 2; }
+  .nav { display: none; order: 3; flex-basis: 100%; flex-direction: column; padding-top: 4px; }
+  .nav a { padding: 10px 12px; }
+  .usuario { display: none; order: 4; flex-basis: 100%; flex-wrap: wrap; padding: 10px 0 4px; border-top: 1px solid var(--color-borde); }
+  .nav.abierta,
+  .usuario.abierta { display: flex; }
+  .quien { text-align: left; flex: 1 1 100%; }
+  .contenido { padding: 16px 12px 40px; }
 }
 </style>

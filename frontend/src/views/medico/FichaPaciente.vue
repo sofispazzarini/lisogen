@@ -7,7 +7,7 @@ import Estado from '@/components/Estado.vue'
 import FormFamiliares from '@/components/FormFamiliares.vue'
 import TablaEstudios from '@/components/TablaEstudios.vue'
 import { usarAccion, usarCarga } from '@/utils/composables'
-import { fecha, titulo } from '@/utils/formato'
+import { etiquetaParentesco, fecha, titulo } from '@/utils/formato'
 
 const props = defineProps<{ id: string }>()
 const route = useRoute()
@@ -137,7 +137,7 @@ async function solicitarReanalisis(): Promise<void> {
             <Alerta v-for="(a, i) in ficha.familiograma_advertencias" :key="`adv-${i}`" tipo="info">{{ a.mensaje }}</Alerta>
             <ul v-if="ficha.familiares.length" class="lista-plana">
               <li v-for="(f, i) in ficha.familiares" :key="i">
-                <strong>{{ titulo(f.parentesco) }}<template v-if="f.lado"> {{ f.lado.toLowerCase() }}</template></strong>: {{ f.nombre }}<template v-if="f.apellido"> {{ f.apellido }}</template>
+                <strong>{{ etiquetaParentesco(f.parentesco, f.lado) }}</strong>: {{ [f.nombre, f.apellido].filter(Boolean).join(' ') }}
                 <span v-if="f.patologia_diagnosticada" class="suave"> · diagnóstico de {{ f.patologia_diagnosticada }}</span>
                 <span v-if="f.sintomas" class="suave"> · {{ f.sintomas }}</span>
               </li>

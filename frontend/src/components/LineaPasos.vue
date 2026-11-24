@@ -61,4 +61,23 @@ const lista = computed(() => pasos(props.estado, props.tipo))
 .paso--actual .nombre { font-weight: 700; color: var(--color-primario); }
 .paso--pendiente .nombre { color: var(--color-texto-suave); }
 .detalle { font-size: 0.75rem; color: var(--color-texto-suave); }
+
+/* Celular: los 7 pasos no entran en una fila; pasa a ser vertical, con la línea a la izquierda */
+@media (max-width: 640px) {
+  .pasos { flex-direction: column; gap: 0; overflow-x: visible; }
+  .paso {
+    min-width: 0;
+    grid-template-columns: 26px 1fr;
+    column-gap: 12px;
+    row-gap: 0;
+    justify-items: start;
+    align-items: center;
+    text-align: left;
+    padding-bottom: 14px;
+    font-size: 0.9rem;
+  }
+  .punto { grid-row: span 2; align-self: start; }
+  .detalle { grid-column: 2; }
+  .paso:not(:last-child)::after { top: 28px; bottom: 0; left: 12px; right: auto; width: 2px; height: auto; }
+}
 </style>

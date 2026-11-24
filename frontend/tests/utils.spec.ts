@@ -69,3 +69,13 @@ describe('formatos', () => {
     expect(destinoDe({}, '/x')).toBe('/x')
   })
 })
+
+describe('etiquetaParentesco', () => {
+  it('suma el lado con la concordancia y las tildes', async () => {
+    const { etiquetaParentesco } = await import('@/utils/formato')
+    expect(etiquetaParentesco('ABUELA', 'MATERNO')).toBe('Abuela materna')
+    expect(etiquetaParentesco('TIO', 'PATERNO')).toBe('Tío paterno')
+    expect(etiquetaParentesco('PRIMA', 'PATERNO')).toBe('Prima paterna')
+    expect(etiquetaParentesco('MADRE', null)).toBe('Madre')
+  })
+})
