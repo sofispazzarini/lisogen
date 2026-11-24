@@ -25,6 +25,7 @@ const form = reactive({
   obra_social_id: null as number | null,
   nro_afiliado: '',
   resumen_historia_clinica: '',
+  familia_codigo: '',
 })
 const sintomas = ref<Concepto[]>([])
 const diagnostico = reactive({ patologia_id: null as number | null, tipo_sospecha: 'CLINICA' as TipoSospecha })
@@ -60,6 +61,7 @@ async function enviar(): Promise<void> {
           ...form,
           obra_social_id: form.obra_social_id,
           nro_afiliado: form.obra_social_id ? form.nro_afiliado || null : null,
+          familia_codigo: form.familia_codigo.trim() || null,
           sintomas: sintomas.value.map((s) => s.concept_id),
           diagnosticos: [{ patologia_id: diagnostico.patologia_id!, tipo_sospecha: diagnostico.tipo_sospecha }],
           familiares: familiares.value.filter((f) => f.nombre.trim()),
@@ -137,6 +139,12 @@ async function enviar(): Promise<void> {
       </div>
 
       <div class="tarjeta formulario">
+        <h2>Familia <small class="suave">(opcional)</small></h2>
+        <label class="campo">
+          <span>Número de familia</span>
+          <input v-model="form.familia_codigo" placeholder="FAM-000123" pattern="\s*[Ff][Aa][Mm]-\d{6}\s*" />
+          <small>Si ya hay un familiar en LisoGen, ingresá su número de familia (figura en su ficha) para ver el historial familiar. Si lo dejás vacío, se crea una familia nueva.</small>
+        </label>
         <h2>Familiograma <small class="suave">(opcional)</small></h2>
         <FormFamiliares v-model="familiares" :patologias="patologias ?? []" />
       </div>

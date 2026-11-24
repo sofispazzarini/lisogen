@@ -150,6 +150,61 @@ async def test_reextraccion_por_adn_desnaturalizado(
     assert nueva.nro_extraccion == 2
 
 
+async def test_reextraccion_por_mala_calidad_con_volumen_bajo(
+    cliente: httpx.AsyncClient, session: AsyncSession, demo: dict[RolUsuario, Usuario]
+) -> None:
+    """SUPUESTO S42: la Muestra de < 2 ml llegó a Corea; si llega con mala calidad, el Administrativo la
+    vuelve atrás desde el Estudio con el motivo MALA_CALIDAD."""
+    admin, medico = demo[RolUsuario.ADMINISTRATIVO], demo[RolUsuario.MEDICO_TRATANTE]
+    p, cuenta = await _paciente_con_cuenta(session, medico)
+    estudio = await factories.estudio_en(
+        session, p, medico, EstadoEstudio.EN_VIAJE_COREA, volumen_ml=Decimal("1.5")
+    )
+    detalle = await ok(await cliente.get(f"/administrativo/estudios/{estudio.id}", headers=headers(admin)))
+    assert detalle["muestra"] == {
+        "nro_extraccion": 1,
+        "volumen_ml": "1.50",
+        "volumen_bajo": True,
+        "estado": "EN_VIAJE_COREA",
+    }
+    await ok(
+        await cliente.post(
+            f"/administrativo/estudios/{estudio.id}/reextraccion",
+            json={"motivo": "MALA_CALIDAD"},
+            headers=headers(admin),
+        )
+    )
+    assert await flujos.estado(cliente, admin, estudio.id) == "PAGADO"
+    m = await session.scalar(select(Muestra).where(Muestra.estudio_id == estudio.id))
+    assert m is not None
+    await session.refresh(m)
+    assert m.estado == EstadoMuestra.MALA_CALIDAD
+    sol = await session.scalar(
+        select(SolicitudReextraccion).where(SolicitudReextraccion.estudio_id == estudio.id)
+    )
+    assert sol is not None and sol.motivo == MotivoReextraccion.MALA_CALIDAD
+    destinatarios = set(
+        await session.scalars(
+            select(Notificacion.usuario_id).where(
+                Notificacion.estudio_id == estudio.id, Notificacion.cuerpo.contains("mala calidad")
+            )
+        )
+    )
+    assert destinatarios == {cuenta.id, medico.id}
+
+
+async def test_reextraccion_motivo_invalido(
+    cliente: httpx.AsyncClient, session: AsyncSession, demo: dict[RolUsuario, Usuario]
+) -> None:
+    estudio = await _en(session, demo, EstadoEstudio.EN_VIAJE_COREA)
+    r = await cliente.post(
+        f"/administrativo/estudios/{estudio.id}/reextraccion",
+        json={"motivo": "VOLUMEN_INSUFICIENTE"},
+        headers=headers(demo[RolUsuario.ADMINISTRATIVO]),
+    )
+    assert r.status_code == 422
+
+
 async def test_reextraccion_solo_con_muestra_en_corea(
     cliente: httpx.AsyncClient, session: AsyncSession, demo: dict[RolUsuario, Usuario]
 ) -> None:

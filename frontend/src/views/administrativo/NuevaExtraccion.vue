@@ -3,29 +3,20 @@ import { ref } from 'vue'
 import { api, ok } from '@/api/cliente'
 import Alerta from '@/components/Alerta.vue'
 import Estado from '@/components/Estado.vue'
+import Reextraccion from '@/components/Reextraccion.vue'
 import TablaEstudios from '@/components/TablaEstudios.vue'
-import { usarAccion, usarCarga } from '@/utils/composables'
+import { usarCarga } from '@/utils/composables'
 
 const { datos, cargando, error, recargar } = usarCarga(() =>
   ok(api.GET('/administrativo/estudios', { params: { query: { estado: 'EN_VIAJE_COREA' } } })),
 )
-const detalles = ref<Record<number, string>>({})
-const { enCurso, error: errorPedido, exito, ejecutar } = usarAccion()
+const exito = ref<string | null>(null)
+const errorPedido = ref<string | null>(null)
 
-/** E22: mismo Estudio, sin costo; el Paciente vuelve a sacar Turno y se avisa a él y al Médico Tratante. */
-async function solicitar(id: number, codigo: string): Promise<void> {
-  if (!window.confirm(`¿Solicitás una nueva extracción para ${codigo}? El Paciente tendrá que sacar otro Turno.`)) return
-  const r = await ejecutar(
-    () =>
-      ok(
-        api.POST('/administrativo/estudios/{estudio_id}/reextraccion', {
-          params: { path: { estudio_id: id } },
-          body: { motivo: 'DESNATURALIZADA', detalle: detalles.value[id] || null },
-        }),
-      ),
-    `Nueva extracción solicitada para ${codigo}. Avisamos al Paciente y al Médico Tratante.`,
-  )
-  if (r) await recargar()
+async function hecho(mensaje: string): Promise<void> {
+  errorPedido.value = null
+  exito.value = mensaje
+  await recargar()
 }
 </script>
 
@@ -34,7 +25,10 @@ async function solicitar(id: number, codigo: string): Promise<void> {
     <div class="encabezado">
       <div>
         <h1>Solicitar nueva extracción</h1>
-        <p>E22. Cuando el ADN llegó desnaturalizado. Las Muestras de menos de 2 ml piden nueva extracción solas al llegar al Laboratorio Central.</p>
+        <p>
+          E22. Cuando la Muestra llegó mal a Corea: ADN desnaturalizado o mala calidad (por ejemplo, con menos de 2 ml).
+          Las Muestras con poco volumen siguen su curso; el aviso aparece en el detalle del Estudio y en Seguir Muestra.
+        </p>
       </div>
     </div>
     <Alerta v-if="errorPedido" tipo="error">{{ errorPedido }}</Alerta>
@@ -43,10 +37,7 @@ async function solicitar(id: number, codigo: string): Promise<void> {
       <Estado :cargando="cargando" :error="error">
         <TablaEstudios :estudios="datos ?? []" :enlace="(e) => `/administrativo/estudios/${e.id}`" vacio="No hay Estudios con Muestras en Corea.">
           <template #acciones="{ estudio }">
-            <form class="fila" @submit.prevent="solicitar(estudio.id, estudio.codigo)">
-              <input v-model="detalles[estudio.id]" placeholder="Detalle (opcional)" :aria-label="`Detalle para ${estudio.codigo}`" />
-              <button class="boton boton--chico boton--peligro" type="submit" :disabled="enCurso">ADN desnaturalizado</button>
-            </form>
+            <Reextraccion :estudio-id="estudio.id" :codigo="estudio.codigo" @hecho="hecho" @error="(m) => (errorPedido = m)" />
           </template>
         </TablaEstudios>
       </Estado>

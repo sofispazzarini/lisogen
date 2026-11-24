@@ -92,12 +92,14 @@ class EstadoMuestra(StrEnum):
     EN_VIAJE_COREA = "EN_VIAJE_COREA"
     PROCESADA = "PROCESADA"
     DESNATURALIZADA = "DESNATURALIZADA"
-    VOLUMEN_INSUFICIENTE = "VOLUMEN_INSUFICIENTE"
+    MALA_CALIDAD = "MALA_CALIDAD"  # migración 0006: llegó mal a Corea (por ejemplo, con poco volumen)
+    VOLUMEN_INSUFICIENTE = "VOLUMEN_INSUFICIENTE"  # histórico: antes de 0006 las de < 2 ml volvían solas
 
 
 class MotivoReextraccion(StrEnum):
     DESNATURALIZADA = "DESNATURALIZADA"
-    VOLUMEN_INSUFICIENTE = "VOLUMEN_INSUFICIENTE"
+    MALA_CALIDAD = "MALA_CALIDAD"
+    VOLUMEN_INSUFICIENTE = "VOLUMEN_INSUFICIENTE"  # histórico (ver EstadoMuestra)
 
 
 class EstadoLote(StrEnum):

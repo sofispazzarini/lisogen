@@ -10,6 +10,7 @@ from sqlalchemy.orm import aliased
 
 from app.domain.enums import EstadoReaut, EstadoTurno, ResultadoOS
 from app.domain.estados import etiqueta
+from app.domain.reglas import volumen_suficiente
 from app.integrations.registro import Integraciones
 from app.models import (
     AutorizacionObraSocial,
@@ -20,6 +21,7 @@ from app.models import (
     EstudioGen,
     EstudioPatologia,
     Gen,
+    Muestra,
     ObraSocial,
     Paciente,
     Pago,
@@ -35,6 +37,7 @@ from app.schemas.comun import (
     EstudioResumen,
     GenEstudio,
     HistorialItem,
+    MuestraEstudio,
     PersonaResumen,
     PresupuestoSalida,
     TurnoSalida,
@@ -207,6 +210,12 @@ async def detalle(session: AsyncSession, ints: Integraciones, estudio: Estudio) 
         )
     )
     tiene_resultado = await session.scalar(select(Resultado.id).where(Resultado.estudio_id == estudio.id))
+    muestra = await session.scalar(
+        select(Muestra)
+        .where(Muestra.estudio_id == estudio.id)
+        .order_by(Muestra.nro_extraccion.desc())
+        .limit(1)
+    )
     return EstudioDetalle(
         **base.model_dump(),
         evalua_hallazgos_secundarios=estudio.evalua_hallazgos_secundarios,
@@ -219,4 +228,12 @@ async def detalle(session: AsyncSession, ints: Integraciones, estudio: Estudio) 
         tiene_resultado=tiene_resultado is not None,
         rechazo_motivo=rechazo,
         reautorizacion_pendiente=reaut is not None,
+        muestra=MuestraEstudio(
+            nro_extraccion=muestra.nro_extraccion,
+            volumen_ml=muestra.volumen_ml,
+            volumen_bajo=not volumen_suficiente(muestra.volumen_ml),
+            estado=muestra.estado,
+        )
+        if muestra
+        else None,
     )

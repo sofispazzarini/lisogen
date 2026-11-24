@@ -16,7 +16,7 @@ const abierta = ref(false)
       :aria-label="`Avisos: ${avisos.noLeidos} sin leer`"
       @click="abierta = !abierta"
     >
-      <span aria-hidden="true">🔔</span> Avisos
+      <span aria-hidden="true">🔔</span> <span class="texto">Avisos</span>
       <span v-if="avisos.noLeidos" class="contador">{{ avisos.noLeidos }}</span>
     </button>
     <div v-if="abierta" class="panel tarjeta" role="dialog" aria-label="Bandeja de Avisos">
@@ -47,4 +47,10 @@ const abierta = ref(false)
 .aviso-boton:hover { background: var(--color-superficie-2); }
 .aviso--nuevo .aviso-boton { background: var(--color-primario-suave); }
 .cuerpo { white-space: pre-line; font-size: 0.875rem; }
+
+/* Celular: el botón queda en el medio de la barra; el panel ocupa el ancho, debajo de ella */
+@media (max-width: 860px) {
+  .panel { position: fixed; top: 64px; left: 12px; right: 12px; width: auto; max-height: calc(100vh - 80px); }
+  .campana .texto { display: none; }
+}
 </style>

@@ -53,13 +53,12 @@ TRANSICIONES: Final[dict[tuple[E, E], Regla]] = {
     # Logística (E24, E25, E20)
     (E.LISTO_PARA_RETIRAR, E.EN_CAMINO_LAB_CENTRAL): _r(R.TRANSPORTISTA, escenario="E24"),
     (E.EN_CAMINO_LAB_CENTRAL, E.EN_LAB_CENTRAL): _r(R.TRANSPORTISTA, escenario="E25"),
-    (E.EN_CAMINO_LAB_CENTRAL, E.PAGADO): _r(SISTEMA, escenario="E25"),  # Muestra < 2 ml
-    (E.EN_CAMINO_LAB_CENTRAL, E.AUTORIZADO): _r(SISTEMA, escenario="E25"),
     (E.EN_LAB_CENTRAL, E.EN_ESPERA_RETIRO): _r(SISTEMA, escenario="E25"),
     (E.EN_ESPERA_RETIRO, E.EN_VIAJE_COREA): _r(SISTEMA, escenario="E20"),
     # Datos crudos y nueva extracción (E21, E22)
     (E.EN_VIAJE_COREA, E.EN_ANALISIS_BIOINFORMATICA): _r(R.ADMINISTRATIVO, escenario="E21"),
-    (E.EN_VIAJE_COREA, E.PAGADO): _r(R.ADMINISTRATIVO, escenario="E22"),  # SUPUESTO S10
+    # Desnaturalizada o mala calidad (SUPUESTO S10, S42). Una Muestra de < 2 ml ya no vuelve sola en E25.
+    (E.EN_VIAJE_COREA, E.PAGADO): _r(R.ADMINISTRATIVO, escenario="E22"),
     (E.EN_VIAJE_COREA, E.AUTORIZADO): _r(R.ADMINISTRATIVO, escenario="E22"),
     # Reanálisis (E6): reutiliza los datos crudos del Estudio origen. SUPUESTO S3
     (E.CREADO, E.EN_ANALISIS_BIOINFORMATICA): _r(SISTEMA, tipos=(TipoEstudio.REANALISIS,), escenario="E6"),

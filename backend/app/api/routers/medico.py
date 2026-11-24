@@ -1,9 +1,10 @@
 """`/medico`: E2 Dar de alta Paciente, E3 Cargar Familiograma, E4 Dar de alta Estudio,
-E5 Asignar Cupón a Paciente, E6 Solicitar Reanálisis. Un Médico sólo ve a sus Pacientes y Estudios."""
+E5 Asignar Cupón a Paciente, E6 Solicitar Reanálisis e historial de la familia. Un Médico sólo ve a sus
+Pacientes y Estudios (y el historial de las familias de sus Pacientes, SUPUESTO S41)."""
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Query, Request, status
+from fastapi import APIRouter, Depends, Path, Query, Request, status
 from sqlalchemy import select
 
 from app.api.deps import Ints, Sesion, ip_cliente, requiere_rol
@@ -18,11 +19,13 @@ from app.schemas.roles import (
     EstudioAlta,
     FamiliogramaEntrada,
     GenesSugeridos,
+    HistorialFamilia,
     PacienteAlta,
     PacienteFicha,
     PacienteResumen,
     PatologiaSalida,
     ReanalisisEntrada,
+    VincularFamiliaEntrada,
 )
 from app.services import consultas, cupones, estudios, pacientes, patologias, resultados, snomed
 from app.services.comun import auditar
@@ -121,6 +124,33 @@ async def familiograma(
     paciente = await pacientes.paciente_del_medico(session, medico, paciente_id)
     await pacientes.cargar_familiograma(session, ints, medico, paciente, datos.familiares)
     return Ok()
+
+
+@router.put("/pacientes/{paciente_id}/familia", response_model=Ok, summary="Vincular a una familia")
+async def vincular_familia(
+    paciente_id: int, datos: VincularFamiliaEntrada, medico: Medico, session: Sesion, request: Request
+) -> Ok:
+    """Une al Paciente a la familia de otro Paciente con su número (FAM-000123)."""
+    paciente = await pacientes.paciente_del_medico(session, medico, paciente_id)
+    await pacientes.vincular_familia(session, medico, paciente, datos.familia_codigo, ip_cliente(request))
+    return Ok()
+
+
+@router.get(
+    "/familias/{familia_codigo}",
+    response_model=HistorialFamilia,
+    summary="Historial de la familia",
+    responses={403: {"model": Error}, 404: {"model": Error}},
+)
+async def historial_familia(
+    familia_codigo: Annotated[str, Path(pattern=r"^FAM-\d{6}$")],
+    medico: Medico,
+    session: Sesion,
+    request: Request,
+) -> HistorialFamilia:
+    """Pacientes de la familia, sus Estudios y resultados, y los familiares declarados. Sólo si algún
+    miembro está a cargo del Médico. La consulta queda en la auditoría."""
+    return await pacientes.historial_familia(session, medico, familia_codigo, ip_cliente(request))
 
 
 # --- Estudios (E4, E6) ------------------------------------------------------------------------

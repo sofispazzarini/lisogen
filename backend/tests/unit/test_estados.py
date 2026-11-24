@@ -75,8 +75,10 @@ def test_cinco_inasistencias_vuelve_a_por_pagar_solo_sistema() -> None:
 
 @pytest.mark.parametrize("vuelta", [E.PAGADO, E.AUTORIZADO])
 def test_reextraccion_sin_costo(vuelta: E) -> None:
-    validar_transicion(E.EN_CAMINO_LAB_CENTRAL, vuelta, SISTEMA, T.EXOMA)  # < 2 ml
-    validar_transicion(E.EN_VIAJE_COREA, vuelta, R.ADMINISTRATIVO, T.EXOMA)  # desnaturalizada
+    validar_transicion(E.EN_VIAJE_COREA, vuelta, R.ADMINISTRATIVO, T.EXOMA)  # desnaturalizada o mala calidad
+    # SUPUESTO S42: una Muestra de < 2 ml ya no hace volver al Estudio sola al llegar al Laboratorio Central
+    with pytest.raises(Conflicto):
+        validar_transicion(E.EN_CAMINO_LAB_CENTRAL, vuelta, SISTEMA, T.EXOMA)
 
 
 def test_reanalisis_saltea_turno_y_logistica() -> None:

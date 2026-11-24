@@ -4,13 +4,14 @@ import logging
 from dataclasses import asdict
 from typing import Final
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import ColumnElement, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import security
 from app.db import al_confirmar
 from app.domain.enums import RolUsuario, TipoArchivo
 from app.domain.errores import Conflicto, ErrorNegocio, NoEncontrado, SinPermiso
+from app.domain.estados import etiqueta
 from app.domain.reglas import es_menor_de_edad, validar_diagnostico
 from app.integrations import familiograma_mapeo as mapeo
 from app.integrations.ports import Advertencia, ErrorFamiliograma, Familiograma
@@ -19,11 +20,13 @@ from app.models import (
     Archivo,
     DiagnosticoPresuntivo,
     Estudio,
+    EstudioPatologia,
     Familiar,
     ObraSocial,
     Paciente,
     PacienteSintoma,
     Patologia,
+    Resultado,
     SnomedConcepto,
     Usuario,
 )
@@ -31,8 +34,11 @@ from app.schemas.comun import Concepto
 from app.schemas.roles import (
     AdvertenciaSalida,
     DiagnosticoSalida,
+    EstudioFamilia,
     FamiliarEntrada,
     FamiliarSalida,
+    HistorialFamilia,
+    MiembroFamilia,
     PacienteAlta,
     PacienteFicha,
     PacienteResumen,
@@ -103,6 +109,9 @@ async def dar_de_alta_paciente(
         # SUPUESTO S7: la cuenta es 1:1 con el Paciente; un padre o madre con dos hijos usa mails distintos.
         raise Conflicto("EMAIL_EN_USO", "Ya hay una cuenta registrada con ese mail.")
 
+    if datos.familia_codigo:
+        await _familia_existente(session, datos.familia_codigo)
+
     menor = es_menor_de_edad(datos.fecha_nacimiento, ahora().date())
     provisoria = security.password_provisoria()
     usuario = Usuario(
@@ -130,8 +139,12 @@ async def dar_de_alta_paciente(
         resumen_historia_clinica=datos.resumen_historia_clinica,
         medico_alta_id=medico.id,
     )
+    if datos.familia_codigo:  # si no, la base le asigna un número de familia nuevo
+        paciente.familia_codigo = datos.familia_codigo
     session.add(paciente)
     await session.flush()
+    if datos.familia_codigo:
+        auditar(session, medico.id, "VINCULAR_FAMILIA", "paciente", paciente.id, None)
     session.add_all(PacienteSintoma(paciente_id=paciente.id, concept_id=c) for c in sintomas)
     session.add_all(
         DiagnosticoPresuntivo(
@@ -337,6 +350,116 @@ def _rechazo_familiograma(e: ErrorFamiliograma, etiquetas: list[str]) -> ErrorNe
     )
 
 
+# --- Historial de la familia -----------------------------------------------------------------
+
+
+async def _familia_existente(session: AsyncSession, codigo: str) -> None:
+    if not await session.scalar(select(Paciente.id).where(Paciente.familia_codigo == codigo).limit(1)):
+        raise ErrorNegocio(
+            "FAMILIA_INEXISTENTE", f"No hay ningún Paciente con el número de familia {codigo}."
+        )
+
+
+async def vincular_familia(
+    session: AsyncSession, medico: Usuario, paciente: Paciente, codigo: str, ip: str | None
+) -> None:
+    """Une al Paciente (a cargo del Médico) a la familia de otro Paciente. El número lo aporta el Paciente o
+    su familia, como prueba del vínculo (SUPUESTO S41); el cambio queda en la auditoría."""
+    if codigo == paciente.familia_codigo:
+        return
+    await _familia_existente(session, codigo)
+    paciente.familia_codigo = codigo
+    auditar(session, medico.id, "VINCULAR_FAMILIA", "paciente", paciente.id, ip)
+
+
+def _a_cargo(medico: Usuario) -> ColumnElement[bool]:
+    """Pacientes del Médico: los que dio de alta o los que tienen Estudios suyos."""
+    estudios_mios = select(Estudio.paciente_id).where(Estudio.medico_tratante_id == medico.id)
+    return or_(Paciente.medico_alta_id == medico.id, Paciente.id.in_(estudios_mios))
+
+
+async def historial_familia(
+    session: AsyncSession, medico: Usuario, codigo: str, ip: str | None
+) -> HistorialFamilia:
+    """Pacientes de la familia con sus Estudios y resultados, y los familiares que declararon. Sólo para el
+    Médico tratante de algún miembro (SUPUESTO S41); sin DNI ni datos de contacto, y con auditoría."""
+    miembros = list(
+        await session.scalars(
+            select(Paciente).where(Paciente.familia_codigo == codigo).order_by(Paciente.fecha_nacimiento)
+        )
+    )
+    if not miembros:
+        raise NoEncontrado("familia", "la")
+    propios = set(
+        await session.scalars(select(Paciente.id).where(Paciente.familia_codigo == codigo, _a_cargo(medico)))
+    )
+    if not propios:
+        raise SinPermiso("Ningún Paciente de esa familia está a tu cargo.")
+    auditar(session, medico.id, "VER_HISTORIAL_FAMILIA", "familia", int(codigo.removeprefix("FAM-")), ip)
+
+    ids = [m.id for m in miembros]
+    estudios = (
+        await session.execute(
+            select(Estudio, Resultado.tipo)
+            .outerjoin(Resultado, Resultado.estudio_id == Estudio.id)
+            .where(Estudio.paciente_id.in_(ids))
+            .order_by(Estudio.created_at.desc(), Estudio.id.desc())
+        )
+    ).all()
+    patologias: dict[int, list[str]] = {}
+    if estudios:
+        for eid, nombre in await session.execute(
+            select(EstudioPatologia.estudio_id, Patologia.nombre)
+            .join(Patologia, Patologia.id == EstudioPatologia.patologia_id)
+            .where(EstudioPatologia.estudio_id.in_([e.id for e, _ in estudios]))
+            .order_by(Patologia.nombre)
+        ):
+            patologias.setdefault(eid, []).append(nombre)
+    por_paciente: dict[int, list[EstudioFamilia]] = {}
+    for e, resultado in estudios:
+        por_paciente.setdefault(e.paciente_id, []).append(
+            EstudioFamilia(
+                codigo=e.codigo,
+                tipo=e.tipo,
+                estado=e.estado,
+                estado_etiqueta=etiqueta(e.estado),
+                patologias=patologias.get(e.id, []),
+                resultado=resultado,
+                created_at=e.created_at,
+            )
+        )
+    declarados: dict[int, list[FamiliarSalida]] = {}
+    for f, n in await session.execute(
+        select(Familiar, Patologia.nombre)
+        .outerjoin(Patologia, Patologia.id == Familiar.patologia_diagnosticada)
+        .where(Familiar.paciente_id.in_(ids))
+        .order_by(Familiar.id)
+    ):
+        declarados.setdefault(f.paciente_id, []).append(
+            FamiliarSalida(
+                parentesco=f.parentesco,
+                nombre=f.nombre,
+                apellido=f.apellido,
+                lado=f.lado,
+                sintomas=f.sintomas,
+                patologia_diagnosticada=n,
+            )
+        )
+    return HistorialFamilia(
+        familia_codigo=codigo,
+        miembros=[
+            MiembroFamilia(
+                paciente_id=m.id if m.id in propios else None,
+                nombre_completo=m.nombre_completo,
+                fecha_nacimiento=m.fecha_nacimiento,
+                estudios=por_paciente.get(m.id, []),
+                familiares_declarados=declarados.get(m.id, []),
+            )
+            for m in miembros
+        ],
+    )
+
+
 async def buscar_pacientes(session: AsyncSession, medico: Usuario, texto: str) -> list[PacienteResumen]:
     estudios_mios = select(Estudio.paciente_id).where(Estudio.medico_tratante_id == medico.id)
     consulta = (
@@ -396,6 +519,7 @@ async def ficha(
     )
     return PacienteFicha(
         id=paciente.id,
+        familia_codigo=paciente.familia_codigo,
         dni=paciente.dni,
         nombre=paciente.nombre,
         apellido=paciente.apellido,

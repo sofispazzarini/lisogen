@@ -7,7 +7,7 @@ import Estado from '@/components/Estado.vue'
 import FormFamiliares from '@/components/FormFamiliares.vue'
 import TablaEstudios from '@/components/TablaEstudios.vue'
 import { usarAccion, usarCarga } from '@/utils/composables'
-import { fecha, titulo } from '@/utils/formato'
+import { etiquetaParentesco, fecha, titulo } from '@/utils/formato'
 
 const props = defineProps<{ id: string }>()
 const route = useRoute()
@@ -35,6 +35,27 @@ async function cargarFamiliograma(): Promise<void> {
   )
   if (r) {
     familiares.value = []
+    await recargar()
+  }
+}
+
+// Historial de la familia (SUPUESTO S41): unir al Paciente a la familia de otro con su número
+const familia = reactive({ codigo: '', editando: false })
+const accionFamilia = usarAccion()
+async function vincularFamilia(): Promise<void> {
+  const r = await accionFamilia.ejecutar(
+    () =>
+      ok(
+        api.PUT('/medico/pacientes/{paciente_id}/familia', {
+          params: { path: { paciente_id: pid.value } },
+          body: { familia_codigo: familia.codigo.trim() },
+        }),
+      ),
+    'Paciente vinculado a la familia.',
+  )
+  if (r) {
+    familia.codigo = ''
+    familia.editando = false
     await recargar()
   }
 }
@@ -77,6 +98,20 @@ async function solicitarReanalisis(): Promise<void> {
           <div class="tarjeta">
             <h2>Datos</h2>
             <dl>
+              <div class="dato">
+                <dt>Familia</dt>
+                <dd>
+                  <strong>{{ ficha.familia_codigo }}</strong> ·
+                  <RouterLink :to="`/medico/familias/${ficha.familia_codigo}`">Ver historial de la familia</RouterLink> ·
+                  <button class="enlace" type="button" @click="familia.editando = !familia.editando">Vincular a otra familia</button>
+                </dd>
+              </div>
+              <form v-if="familia.editando" class="fila" @submit.prevent="vincularFamilia">
+                <input v-model="familia.codigo" placeholder="FAM-000123" aria-label="Número de familia" pattern="\s*[Ff][Aa][Mm]-\d{6}\s*" required />
+                <button class="boton boton--chico" type="submit" :disabled="accionFamilia.enCurso.value">Vincular</button>
+              </form>
+              <Alerta v-if="accionFamilia.error.value" tipo="error">{{ accionFamilia.error.value }}</Alerta>
+              <Alerta v-if="accionFamilia.exito.value" tipo="exito">{{ accionFamilia.exito.value }}</Alerta>
               <div class="dato"><dt>Nacimiento</dt><dd>{{ fecha(ficha.fecha_nacimiento) }}<template v-if="ficha.es_menor_al_alta"> (menor de edad al alta)</template></dd></div>
               <div class="dato"><dt>Teléfono</dt><dd>{{ ficha.telefono }}</dd></div>
               <div class="dato"><dt>Mail de contacto</dt><dd>{{ ficha.email_contacto }}</dd></div>
@@ -102,7 +137,7 @@ async function solicitarReanalisis(): Promise<void> {
             <Alerta v-for="(a, i) in ficha.familiograma_advertencias" :key="`adv-${i}`" tipo="info">{{ a.mensaje }}</Alerta>
             <ul v-if="ficha.familiares.length" class="lista-plana">
               <li v-for="(f, i) in ficha.familiares" :key="i">
-                <strong>{{ titulo(f.parentesco) }}<template v-if="f.lado"> {{ f.lado.toLowerCase() }}</template></strong>: {{ f.nombre }}<template v-if="f.apellido"> {{ f.apellido }}</template>
+                <strong>{{ etiquetaParentesco(f.parentesco, f.lado) }}</strong>: {{ [f.nombre, f.apellido].filter(Boolean).join(' ') }}
                 <span v-if="f.patologia_diagnosticada" class="suave"> · diagnóstico de {{ f.patologia_diagnosticada }}</span>
                 <span v-if="f.sintomas" class="suave"> · {{ f.sintomas }}</span>
               </li>
@@ -153,5 +188,6 @@ async function solicitarReanalisis(): Promise<void> {
 </template>
 
 <style scoped>
+.enlace { background: none; border: 0; padding: 0; font: inherit; color: var(--color-primario); text-decoration: underline; cursor: pointer; }
 .familiograma { display: block; max-width: 100%; height: auto; background: #fff; border: 1px solid var(--color-borde); border-radius: var(--radio-chico); }
 </style>

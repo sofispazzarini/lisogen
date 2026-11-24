@@ -6,6 +6,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from app.domain.enums import (
     ClasifVariante,
     EstadoEstudio,
+    EstadoMuestra,
     EstadoTurno,
     ModalidadPago,
     TipoEstudio,
@@ -110,6 +111,16 @@ class ResultadoSalida(Esquema):
     pdf_url: str | None
 
 
+class MuestraEstudio(Esquema):
+    """Última Muestra del Estudio. `volumen_bajo`: menos de 2 ml, sigue su curso pero puede llegar mal a
+    Corea; si pasa, el Administrativo pide una nueva extracción (SUPUESTO S42)."""
+
+    nro_extraccion: int
+    volumen_ml: Decimal
+    volumen_bajo: bool
+    estado: EstadoMuestra
+
+
 class EstudioDetalle(EstudioResumen):
     evalua_hallazgos_secundarios: bool
     estudio_origen_codigo: str | None
@@ -121,6 +132,7 @@ class EstudioDetalle(EstudioResumen):
     tiene_resultado: bool
     rechazo_motivo: str | None
     reautorizacion_pendiente: bool
+    muestra: MuestraEstudio | None = None
 
 
 class Aviso(Esquema):

@@ -1,17 +1,30 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { api, ok } from '@/api/cliente'
+import Alerta from '@/components/Alerta.vue'
 import BadgeEstado from '@/components/BadgeEstado.vue'
 import BadgeUrgente from '@/components/BadgeUrgente.vue'
 import Estado from '@/components/Estado.vue'
 import Historial from '@/components/Historial.vue'
 import LineaPasos from '@/components/LineaPasos.vue'
+import Reextraccion from '@/components/Reextraccion.vue'
 import { usarCarga } from '@/utils/composables'
 import { fechaHora, titulo, usd } from '@/utils/formato'
 
 const props = defineProps<{ id: string }>()
 const path = computed(() => ({ params: { path: { estudio_id: Number(props.id) } } }))
-const { datos: e, cargando, error } = usarCarga(() => ok(api.GET('/administrativo/estudios/{estudio_id}', path.value)))
+const { datos: e, cargando, error, recargar } = usarCarga(() =>
+  ok(api.GET('/administrativo/estudios/{estudio_id}', path.value)),
+)
+
+// E22 / SUPUESTO S42: si la Muestra llegó mal a Corea, se vuelve atrás desde acá
+const exito = ref<string | null>(null)
+const errorReextraccion = ref<string | null>(null)
+async function reextraccionHecha(mensaje: string): Promise<void> {
+  errorReextraccion.value = null
+  exito.value = mensaje
+  await recargar()
+}
 
 /** Acceso directo a la acción que el Estudio espera del Laboratorio. */
 const accion = computed(() => {
@@ -45,6 +58,22 @@ const accion = computed(() => {
           </div>
         </div>
         <div class="tarjeta"><LineaPasos :estado="e.estado" :tipo="e.tipo" /></div>
+        <Alerta v-if="exito" tipo="exito">{{ exito }}</Alerta>
+        <div v-if="e.muestra" class="tarjeta">
+          <h2>Muestra</h2>
+          <p>
+            Extracción N.º {{ e.muestra.nro_extraccion }} · {{ e.muestra.volumen_ml }} ml · {{ titulo(e.muestra.estado) }}
+          </p>
+          <Alerta v-if="e.muestra.volumen_bajo" tipo="info">
+            Volumen bajo: la Muestra tiene menos de 2 ml. Sigue su curso, pero puede llegar con mala calidad a Corea. Si pasa, pedí una
+            nueva extracción.
+          </Alerta>
+          <template v-if="e.estado === 'EN_VIAJE_COREA'">
+            <p class="suave">Si Corea informa que la Muestra llegó mal, el Estudio vuelve atrás y el Paciente saca otro Turno sin costo.</p>
+            <Alerta v-if="errorReextraccion" tipo="error">{{ errorReextraccion }}</Alerta>
+            <Reextraccion :estudio-id="e.id" :codigo="e.codigo" @hecho="reextraccionHecha" @error="(m) => (errorReextraccion = m)" />
+          </template>
+        </div>
         <div class="grilla-2">
           <div class="tarjeta">
             <h2>Presupuesto</h2>

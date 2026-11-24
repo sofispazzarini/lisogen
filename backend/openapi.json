@@ -616,6 +616,7 @@
           "EN_VIAJE_COREA",
           "PROCESADA",
           "DESNATURALIZADA",
+          "MALA_CALIDAD",
           "VOLUMEN_INSUFICIENTE"
         ],
         "title": "EstadoMuestra",
@@ -842,6 +843,16 @@
           "medico_tratante": {
             "$ref": "#/components/schemas/PersonaResumen"
           },
+          "muestra": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MuestraEstudio"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "paciente": {
             "$ref": "#/components/schemas/PersonaResumen"
           },
@@ -927,6 +938,57 @@
           "reautorizacion_pendiente"
         ],
         "title": "EstudioDetalle",
+        "type": "object"
+      },
+      "EstudioFamilia": {
+        "properties": {
+          "codigo": {
+            "title": "Codigo",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "estado": {
+            "$ref": "#/components/schemas/EstadoEstudio"
+          },
+          "estado_etiqueta": {
+            "title": "Estado Etiqueta",
+            "type": "string"
+          },
+          "patologias": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Patologias",
+            "type": "array"
+          },
+          "resultado": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TipoResultado"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "tipo": {
+            "$ref": "#/components/schemas/TipoEstudio"
+          }
+        },
+        "required": [
+          "codigo",
+          "tipo",
+          "estado",
+          "estado_etiqueta",
+          "patologias",
+          "resultado",
+          "created_at"
+        ],
+        "title": "EstudioFamilia",
         "type": "object"
       },
       "EstudioResumen": {
@@ -1229,6 +1291,27 @@
         "title": "HTTPValidationError",
         "type": "object"
       },
+      "HistorialFamilia": {
+        "properties": {
+          "familia_codigo": {
+            "title": "Familia Codigo",
+            "type": "string"
+          },
+          "miembros": {
+            "items": {
+              "$ref": "#/components/schemas/MiembroFamilia"
+            },
+            "title": "Miembros",
+            "type": "array"
+          }
+        },
+        "required": [
+          "familia_codigo",
+          "miembros"
+        ],
+        "title": "HistorialFamilia",
+        "type": "object"
+      },
       "HistorialItem": {
         "properties": {
           "actor": {
@@ -1374,17 +1457,18 @@
             "title": "Recibidas",
             "type": "integer"
           },
-          "volumen_insuficiente": {
+          "volumen_bajo": {
+            "description": "Estudios cuya Muestra llegó con menos de 2 ml: entran al Lote igual (aviso)",
             "items": {
               "type": "string"
             },
-            "title": "Volumen Insuficiente",
+            "title": "Volumen Bajo",
             "type": "array"
           }
         },
         "required": [
           "recibidas",
-          "volumen_insuficiente",
+          "volumen_bajo",
           "lotes_sellados",
           "lote_en_formacion"
         ],
@@ -1555,6 +1639,54 @@
         "title": "MedicoSalida",
         "type": "object"
       },
+      "MiembroFamilia": {
+        "description": "Un Paciente de la familia. Sin datos de contacto ni DNI. `paciente_id` sólo viene si el Médico\npuede abrir su ficha (lo dio de alta o tiene Estudios suyos).",
+        "properties": {
+          "estudios": {
+            "items": {
+              "$ref": "#/components/schemas/EstudioFamilia"
+            },
+            "title": "Estudios",
+            "type": "array"
+          },
+          "familiares_declarados": {
+            "items": {
+              "$ref": "#/components/schemas/FamiliarSalida"
+            },
+            "title": "Familiares Declarados",
+            "type": "array"
+          },
+          "fecha_nacimiento": {
+            "format": "date",
+            "title": "Fecha Nacimiento",
+            "type": "string"
+          },
+          "nombre_completo": {
+            "title": "Nombre Completo",
+            "type": "string"
+          },
+          "paciente_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Paciente Id"
+          }
+        },
+        "required": [
+          "paciente_id",
+          "nombre_completo",
+          "fecha_nacimiento",
+          "estudios",
+          "familiares_declarados"
+        ],
+        "title": "MiembroFamilia",
+        "type": "object"
+      },
       "ModalidadPago": {
         "enum": [
           "PARTICULAR",
@@ -1609,6 +1741,34 @@
         "title": "MovimientoSalida",
         "type": "object"
       },
+      "MuestraEstudio": {
+        "description": "Última Muestra del Estudio. `volumen_bajo`: menos de 2 ml, sigue su curso pero puede llegar mal a\nCorea; si pasa, el Administrativo pide una nueva extracción (SUPUESTO S42).",
+        "properties": {
+          "estado": {
+            "$ref": "#/components/schemas/EstadoMuestra"
+          },
+          "nro_extraccion": {
+            "title": "Nro Extraccion",
+            "type": "integer"
+          },
+          "volumen_bajo": {
+            "title": "Volumen Bajo",
+            "type": "boolean"
+          },
+          "volumen_ml": {
+            "title": "Volumen Ml",
+            "type": "string"
+          }
+        },
+        "required": [
+          "nro_extraccion",
+          "volumen_ml",
+          "volumen_bajo",
+          "estado"
+        ],
+        "title": "MuestraEstudio",
+        "type": "object"
+      },
       "MuestraSalida": {
         "properties": {
           "centro": {
@@ -1654,6 +1814,11 @@
             "title": "Tomada At",
             "type": "string"
           },
+          "volumen_bajo": {
+            "description": "Menos de 2 ml: sigue su curso, pero puede llegar mal a Corea",
+            "title": "Volumen Bajo",
+            "type": "boolean"
+          },
           "volumen_ml": {
             "title": "Volumen Ml",
             "type": "string"
@@ -1666,6 +1831,7 @@
           "paciente",
           "nro_extraccion",
           "volumen_ml",
+          "volumen_bajo",
           "estado",
           "centro",
           "tomada_at",
@@ -1784,6 +1950,18 @@
             "title": "Email",
             "type": "string"
           },
+          "familia_codigo": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Número de familia de otro Paciente (FAM-000123) para vincularlo. Vacío: familia nueva.",
+            "title": "Familia Codigo"
+          },
           "familiares": {
             "items": {
               "$ref": "#/components/schemas/FamiliarEntrada"
@@ -1894,6 +2072,10 @@
             "title": "Estudios",
             "type": "array"
           },
+          "familia_codigo": {
+            "title": "Familia Codigo",
+            "type": "string"
+          },
           "familiares": {
             "items": {
               "$ref": "#/components/schemas/FamiliarSalida"
@@ -1984,6 +2166,7 @@
         },
         "required": [
           "id",
+          "familia_codigo",
           "dni",
           "nombre",
           "apellido",
@@ -2496,8 +2679,11 @@
             "title": "Detalle"
           },
           "motivo": {
-            "const": "DESNATURALIZADA",
             "default": "DESNATURALIZADA",
+            "enum": [
+              "DESNATURALIZADA",
+              "MALA_CALIDAD"
+            ],
             "title": "Motivo",
             "type": "string"
           }
@@ -3068,6 +3254,19 @@
           "codigo"
         ],
         "title": "VerificarEntrada",
+        "type": "object"
+      },
+      "VincularFamiliaEntrada": {
+        "properties": {
+          "familia_codigo": {
+            "title": "Familia Codigo",
+            "type": "string"
+          }
+        },
+        "required": [
+          "familia_codigo"
+        ],
+        "title": "VincularFamiliaEntrada",
         "type": "object"
       }
     },
@@ -3659,6 +3858,7 @@
     },
     "/administrativo/estudios/{estudio_id}/reextraccion": {
       "post": {
+        "description": "ADN desnaturalizado o Muestra de mala calidad (la de < 2 ml ya no vuelve sola, SUPUESTO S42).",
         "operationId": "reextraccion_administrativo_estudios__estudio_id__reextraccion_post",
         "parameters": [
           {
@@ -6689,6 +6889,85 @@
         ]
       }
     },
+    "/medico/familias/{familia_codigo}": {
+      "get": {
+        "description": "Pacientes de la familia, sus Estudios y resultados, y los familiares declarados. Sólo si algún\nmiembro está a cargo del Médico. La consulta queda en la auditoría.",
+        "operationId": "historial_familia_medico_familias__familia_codigo__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "familia_codigo",
+            "required": true,
+            "schema": {
+              "pattern": "^FAM-\\d{6}$",
+              "title": "Familia Codigo",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HistorialFamilia"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Historial de la familia",
+        "tags": [
+          "medico"
+        ]
+      }
+    },
     "/medico/obras-sociales": {
       "get": {
         "operationId": "obras_sociales_medico_obras_sociales_get",
@@ -6989,6 +7268,94 @@
           }
         ],
         "summary": "Ficha del Paciente con historial (E6)",
+        "tags": [
+          "medico"
+        ]
+      }
+    },
+    "/medico/pacientes/{paciente_id}/familia": {
+      "put": {
+        "description": "Une al Paciente a la familia de otro Paciente con su número (FAM-000123).",
+        "operationId": "vincular_familia_medico_pacientes__paciente_id__familia_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "paciente_id",
+            "required": true,
+            "schema": {
+              "title": "Paciente Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VincularFamiliaEntrada"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Ok"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Vincular a una familia",
         "tags": [
           "medico"
         ]

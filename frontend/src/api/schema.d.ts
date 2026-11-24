@@ -135,7 +135,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Solicitar nueva extracción (E22) */
+        /**
+         * Solicitar nueva extracción (E22)
+         * @description ADN desnaturalizado o Muestra de mala calidad (la de < 2 ml ya no vuelve sola, SUPUESTO S42).
+         */
         post: operations["reextraccion_administrativo_estudios__estudio_id__reextraccion_post"];
         delete?: never;
         options?: never;
@@ -755,6 +758,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/medico/familias/{familia_codigo}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Historial de la familia
+         * @description Pacientes de la familia, sus Estudios y resultados, y los familiares declarados. Sólo si algún
+         *     miembro está a cargo del Médico. La consulta queda en la auditoría.
+         */
+        get: operations["historial_familia_medico_familias__familia_codigo__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/medico/obras-sociales": {
         parameters: {
             query?: never;
@@ -823,6 +847,26 @@ export interface paths {
         /** Ficha del Paciente con historial (E6) */
         get: operations["ficha_paciente_medico_pacientes__paciente_id__get"];
         put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/medico/pacientes/{paciente_id}/familia": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Vincular a una familia
+         * @description Une al Paciente a la familia de otro Paciente con su número (FAM-000123).
+         */
+        put: operations["vincular_familia_medico_pacientes__paciente_id__familia_put"];
         post?: never;
         delete?: never;
         options?: never;
@@ -1466,7 +1510,7 @@ export interface components {
          * EstadoMuestra
          * @enum {string}
          */
-        EstadoMuestra: "LISTO_PARA_RETIRAR" | "EN_CAMINO_LAB_CENTRAL" | "EN_LAB_CENTRAL" | "EN_LOTE" | "EN_VIAJE_COREA" | "PROCESADA" | "DESNATURALIZADA" | "VOLUMEN_INSUFICIENTE";
+        EstadoMuestra: "LISTO_PARA_RETIRAR" | "EN_CAMINO_LAB_CENTRAL" | "EN_LAB_CENTRAL" | "EN_LOTE" | "EN_VIAJE_COREA" | "PROCESADA" | "DESNATURALIZADA" | "MALA_CALIDAD" | "VOLUMEN_INSUFICIENTE";
         /**
          * EstadoParada
          * @enum {string}
@@ -1553,6 +1597,7 @@ export interface components {
             /** Inasistencias */
             inasistencias: number;
             medico_tratante: components["schemas"]["PersonaResumen"];
+            muestra?: components["schemas"]["MuestraEstudio"] | null;
             paciente: components["schemas"]["PersonaResumen"];
             /** Patologias */
             patologias: string[];
@@ -1569,6 +1614,23 @@ export interface components {
             urgente: boolean;
             /** Version */
             version: number;
+        };
+        /** EstudioFamilia */
+        EstudioFamilia: {
+            /** Codigo */
+            codigo: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            estado: components["schemas"]["EstadoEstudio"];
+            /** Estado Etiqueta */
+            estado_etiqueta: string;
+            /** Patologias */
+            patologias: string[];
+            resultado: components["schemas"]["TipoResultado"] | null;
+            tipo: components["schemas"]["TipoEstudio"];
         };
         /** EstudioResumen */
         EstudioResumen: {
@@ -1661,6 +1723,13 @@ export interface components {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
         };
+        /** HistorialFamilia */
+        HistorialFamilia: {
+            /** Familia Codigo */
+            familia_codigo: string;
+            /** Miembros */
+            miembros: components["schemas"]["MiembroFamilia"][];
+        };
         /** HistorialItem */
         HistorialItem: {
             /** Actor */
@@ -1706,8 +1775,11 @@ export interface components {
             lotes_sellados: string[];
             /** Recibidas */
             recibidas: number;
-            /** Volumen Insuficiente */
-            volumen_insuficiente: string[];
+            /**
+             * Volumen Bajo
+             * @description Estudios cuya Muestra llegó con menos de 2 ml: entran al Lote igual (aviso)
+             */
+            volumen_bajo: string[];
         };
         /** LoginEntrada */
         LoginEntrada: {
@@ -1757,6 +1829,26 @@ export interface components {
             nombre_completo: string;
         };
         /**
+         * MiembroFamilia
+         * @description Un Paciente de la familia. Sin datos de contacto ni DNI. `paciente_id` sólo viene si el Médico
+         *     puede abrir su ficha (lo dio de alta o tiene Estudios suyos).
+         */
+        MiembroFamilia: {
+            /** Estudios */
+            estudios: components["schemas"]["EstudioFamilia"][];
+            /** Familiares Declarados */
+            familiares_declarados: components["schemas"]["FamiliarSalida"][];
+            /**
+             * Fecha Nacimiento
+             * Format: date
+             */
+            fecha_nacimiento: string;
+            /** Nombre Completo */
+            nombre_completo: string;
+            /** Paciente Id */
+            paciente_id: number | null;
+        };
+        /**
          * ModalidadPago
          * @enum {string}
          */
@@ -1777,6 +1869,20 @@ export interface components {
             monto_usd: string;
             /** Obra Social */
             obra_social: string | null;
+        };
+        /**
+         * MuestraEstudio
+         * @description Última Muestra del Estudio. `volumen_bajo`: menos de 2 ml, sigue su curso pero puede llegar mal a
+         *     Corea; si pasa, el Administrativo pide una nueva extracción (SUPUESTO S42).
+         */
+        MuestraEstudio: {
+            estado: components["schemas"]["EstadoMuestra"];
+            /** Nro Extraccion */
+            nro_extraccion: number;
+            /** Volumen Bajo */
+            volumen_bajo: boolean;
+            /** Volumen Ml */
+            volumen_ml: string;
         };
         /** MuestraSalida */
         MuestraSalida: {
@@ -1800,6 +1906,11 @@ export interface components {
              * Format: date-time
              */
             tomada_at: string;
+            /**
+             * Volumen Bajo
+             * @description Menos de 2 ml: sigue su curso, pero puede llegar mal a Corea
+             */
+            volumen_bajo: boolean;
             /** Volumen Ml */
             volumen_ml: string;
         };
@@ -1851,6 +1962,11 @@ export interface components {
              * @description Mail del Paciente, o de un padre o madre si es menor de edad.
              */
             email: string;
+            /**
+             * Familia Codigo
+             * @description Número de familia de otro Paciente (FAM-000123) para vincularlo. Vacío: familia nueva.
+             */
+            familia_codigo?: string | null;
             /** Familiares */
             familiares?: components["schemas"]["FamiliarEntrada"][];
             /**
@@ -1888,6 +2004,8 @@ export interface components {
             es_menor_al_alta: boolean;
             /** Estudios */
             estudios: components["schemas"]["EstudioResumen"][];
+            /** Familia Codigo */
+            familia_codigo: string;
             /** Familiares */
             familiares: components["schemas"]["FamiliarSalida"][];
             /** Familiograma Advertencias */
@@ -2087,9 +2205,9 @@ export interface components {
             /**
              * Motivo
              * @default DESNATURALIZADA
-             * @constant
+             * @enum {string}
              */
-            motivo: "DESNATURALIZADA";
+            motivo: "DESNATURALIZADA" | "MALA_CALIDAD";
         };
         /** RefreshEntrada */
         RefreshEntrada: {
@@ -2298,6 +2416,11 @@ export interface components {
             codigo: string;
             /** Desafio Token */
             desafio_token: string;
+        };
+        /** VincularFamiliaEntrada */
+        VincularFamiliaEntrada: {
+            /** Familia Codigo */
+            familia_codigo: string;
         };
     };
     responses: never;
@@ -5002,6 +5125,64 @@ export interface operations {
             };
         };
     };
+    historial_familia_medico_familias__familia_codigo__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                familia_codigo: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HistorialFamilia"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
     obras_sociales_medico_obras_sociales_get: {
         parameters: {
             query?: never;
@@ -5196,6 +5377,68 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PacienteFicha"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    vincular_familia_medico_pacientes__paciente_id__familia_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                paciente_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VincularFamiliaEntrada"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Ok"];
                 };
             };
             /** @description Forbidden */

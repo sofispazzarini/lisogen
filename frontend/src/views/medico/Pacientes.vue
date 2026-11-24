@@ -28,15 +28,15 @@ const { datos, cargando, error, recargar } = usarCarga(() =>
       </form>
       <Estado :cargando="cargando" :error="error">
         <div class="tabla-contenedor">
-          <table v-if="datos?.length" class="tabla">
+          <table v-if="datos?.length" class="tabla tabla--apilable">
             <thead><tr><th>Paciente</th><th>DNI</th><th>Nacimiento</th><th>Obra Social</th><th>Estudios</th></tr></thead>
             <tbody>
               <tr v-for="p in datos" :key="p.id">
                 <td><RouterLink :to="`/medico/pacientes/${p.id}`">{{ p.nombre_completo }}</RouterLink></td>
-                <td>{{ p.dni }}</td>
-                <td>{{ fecha(p.fecha_nacimiento) }}</td>
-                <td>{{ p.obra_social ?? 'Particular' }}</td>
-                <td>{{ p.cantidad_estudios }}</td>
+                <td data-etiqueta="DNI">{{ p.dni }}</td>
+                <td data-etiqueta="Nacimiento">{{ fecha(p.fecha_nacimiento) }}</td>
+                <td data-etiqueta="Obra Social">{{ p.obra_social ?? 'Particular' }}</td>
+                <td data-etiqueta="Estudios">{{ p.cantidad_estudios }}</td>
               </tr>
             </tbody>
           </table>

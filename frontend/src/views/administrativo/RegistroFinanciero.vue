@@ -23,15 +23,15 @@ const { datos, cargando, error } = usarCarga(() => ok(api.GET('/administrativo/m
           <div class="tarjeta"><small class="suave">Pérdidas por inasistencias</small><strong class="monto">{{ usd(datos.total_perdidas_usd) }}</strong></div>
         </div>
         <div class="tarjeta tabla-contenedor">
-          <table v-if="datos.movimientos.length" class="tabla">
-            <thead><tr><th>Fecha</th><th>Estudio</th><th>Concepto</th><th>Obra Social</th><th style="text-align: right">Monto</th></tr></thead>
+          <table v-if="datos.movimientos.length" class="tabla tabla--apilable">
+            <thead><tr><th>Fecha</th><th>Estudio</th><th>Concepto</th><th>Obra Social</th><th class="celda-monto">Monto</th></tr></thead>
             <tbody>
               <tr v-for="m in datos.movimientos" :key="m.id">
                 <td>{{ fechaHora(m.created_at) }}</td>
-                <td>{{ m.estudio_codigo }}</td>
-                <td>{{ titulo(m.concepto) }}</td>
-                <td>{{ m.obra_social ?? '—' }}</td>
-                <td class="monto" style="text-align: right">{{ usd(m.monto_usd) }}</td>
+                <td data-etiqueta="Estudio">{{ m.estudio_codigo }}</td>
+                <td data-etiqueta="Concepto">{{ titulo(m.concepto) }}</td>
+                <td data-etiqueta="Obra Social">{{ m.obra_social ?? '—' }}</td>
+                <td class="monto celda-monto" data-etiqueta="Monto">{{ usd(m.monto_usd) }}</td>
               </tr>
             </tbody>
           </table>

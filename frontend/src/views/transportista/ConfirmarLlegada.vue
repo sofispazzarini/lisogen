@@ -28,8 +28,8 @@ async function confirmar(): Promise<void> {
       <template v-if="orden">
         <div v-if="resultado" class="tarjeta pagina">
           <Alerta tipo="exito">Recibimos {{ resultado.recibidas }} Muestra{{ resultado.recibidas === 1 ? '' : 's' }}.</Alerta>
-          <Alerta v-if="resultado.volumen_insuficiente.length" tipo="info">
-            Con menos de 2 ml (se pidió nueva extracción): {{ resultado.volumen_insuficiente.join(', ') }}.
+          <Alerta v-if="resultado.volumen_bajo.length" tipo="info">
+            Con menos de 2 ml (entran al Lote igual; el Laboratorio ya tiene el aviso): {{ resultado.volumen_bajo.join(', ') }}.
           </Alerta>
           <p v-if="resultado.lotes_sellados.length">Lotes sellados: <strong>{{ resultado.lotes_sellados.join(', ') }}</strong>.</p>
           <p v-if="resultado.lote_en_formacion" class="suave">Lote en formación: {{ resultado.lote_en_formacion }}.</p>

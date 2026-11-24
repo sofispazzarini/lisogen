@@ -7,7 +7,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, File, Request, UploadFile
 
 from app.api.deps import Ints, Sesion, ip_cliente, requiere_rol
-from app.domain.enums import EstadoEstudio, RolUsuario
+from app.domain.enums import EstadoEstudio, MotivoReextraccion, RolUsuario
 from app.domain.errores import ErrorNegocio
 from app.models import Estudio, Usuario
 from app.schemas.comun import Error, EstudioDetalle, EstudioResumen, Ok
@@ -167,5 +167,8 @@ async def datos_crudos(
     "/estudios/{estudio_id}/reextraccion", response_model=Ok, summary="Solicitar nueva extracción (E22)"
 )
 async def reextraccion(estudio_id: int, datos: ReextraccionEntrada, admin: Admin, session: Sesion) -> Ok:
-    await laboratorio.solicitar_reextraccion(session, admin, estudio_id, datos.detalle)
+    """ADN desnaturalizado o Muestra de mala calidad (la de < 2 ml ya no vuelve sola, SUPUESTO S42)."""
+    await laboratorio.solicitar_reextraccion(
+        session, admin, estudio_id, datos.detalle, MotivoReextraccion(datos.motivo)
+    )
     return Ok()

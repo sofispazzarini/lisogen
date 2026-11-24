@@ -53,15 +53,18 @@ const marcadores = computed<Marcador[]>(() =>
       </form>
       <Alerta v-if="busqueda.error.value" tipo="error">{{ busqueda.error.value }}</Alerta>
       <div v-if="muestras" class="tabla-contenedor">
-        <table v-if="muestras.length" class="tabla">
+        <table v-if="muestras.length" class="tabla tabla--apilable">
           <thead><tr><th>Estudio</th><th>Paciente</th><th>Extracción</th><th>Centro</th><th>Estado</th><th></th></tr></thead>
           <tbody>
             <tr v-for="m in muestras" :key="m.id">
-              <td>{{ m.estudio_codigo }}</td>
-              <td>{{ m.paciente }}</td>
-              <td>N.º {{ m.nro_extraccion }} · {{ m.volumen_ml }} ml</td>
-              <td>{{ m.centro }}</td>
-              <td>{{ titulo(m.estado) }}<template v-if="m.lote_codigo"> · {{ m.lote_codigo }}</template></td>
+              <td><RouterLink :to="`/administrativo/estudios/${m.estudio_id}`">{{ m.estudio_codigo }}</RouterLink></td>
+              <td data-etiqueta="Paciente">{{ m.paciente }}</td>
+              <td data-etiqueta="Extracción">
+                N.º {{ m.nro_extraccion }} · {{ m.volumen_ml }} ml
+                <span v-if="m.volumen_bajo" class="volumen-bajo" title="Menos de 2 ml: puede llegar con mala calidad a Corea">volumen bajo</span>
+              </td>
+              <td data-etiqueta="Centro">{{ m.centro }}</td>
+              <td data-etiqueta="Estado">{{ titulo(m.estado) }}<template v-if="m.lote_codigo"> · {{ m.lote_codigo }}</template></td>
               <td><button class="boton boton--chico" type="button" @click="ubicar(m)">Ver en el mapa</button></td>
             </tr>
           </tbody>
@@ -83,3 +86,7 @@ const marcadores = computed<Marcador[]>(() =>
     </div>
   </section>
 </template>
+
+<style scoped>
+.volumen-bajo { display: inline-block; margin-left: 6px; padding: 1px 8px; border-radius: 999px; font-size: 0.8rem; background: var(--tono-alerta-fondo); color: var(--tono-alerta-texto); }
+</style>

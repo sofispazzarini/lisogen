@@ -84,18 +84,18 @@ async function asignar(): Promise<void> {
     <div class="tarjeta">
       <Estado :cargando="cupones.cargando.value" :error="cupones.error.value">
         <div class="tabla-contenedor">
-          <table v-if="cupones.datos.value?.length" class="tabla">
+          <table v-if="cupones.datos.value?.length" class="tabla tabla--apilable">
             <thead><tr><th></th><th>Código</th><th>Descuento</th><th>Estado</th><th>Médico</th><th>Paciente</th><th>Vence</th><th>QR</th></tr></thead>
             <tbody>
               <tr v-for="c in cupones.datos.value" :key="c.id">
-                <td><input v-if="c.estado === 'DISPONIBLE'" v-model="seleccion" type="checkbox" :value="c.id" :aria-label="`Elegir ${c.codigo}`" /></td>
-                <td><code>{{ c.codigo }}</code></td>
-                <td>{{ c.descuento_pct }}%</td>
-                <td>{{ titulo(c.estado) }}</td>
-                <td>{{ c.medico ?? '—' }}</td>
-                <td>{{ c.paciente ?? '—' }}</td>
-                <td>{{ c.vence_at ? fecha(c.vence_at) : '—' }}</td>
-                <td><a v-if="c.qr_url" :href="c.qr_url" target="_blank" rel="noopener">PDF</a><span v-else class="suave">—</span></td>
+                <td data-etiqueta="Elegir"><input v-if="c.estado === 'DISPONIBLE'" v-model="seleccion" type="checkbox" :value="c.id" :aria-label="`Elegir ${c.codigo}`" /></td>
+                <td data-etiqueta="Código"><code>{{ c.codigo }}</code></td>
+                <td data-etiqueta="Descuento">{{ c.descuento_pct }}%</td>
+                <td data-etiqueta="Estado">{{ titulo(c.estado) }}</td>
+                <td data-etiqueta="Médico">{{ c.medico ?? '—' }}</td>
+                <td data-etiqueta="Paciente">{{ c.paciente ?? '—' }}</td>
+                <td data-etiqueta="Vence">{{ c.vence_at ? fecha(c.vence_at) : '—' }}</td>
+                <td data-etiqueta="QR"><a v-if="c.qr_url" :href="c.qr_url" target="_blank" rel="noopener">PDF</a><span v-else class="suave">—</span></td>
               </tr>
             </tbody>
           </table>

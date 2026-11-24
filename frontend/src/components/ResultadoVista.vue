@@ -19,13 +19,13 @@ const TEXTO: Record<Esquemas['TipoResultado'], string> = {
     </div>
     <p class="suave">Confirmado el {{ fechaHora(resultado.confirmado_at) }}.</p>
     <div class="tabla-contenedor">
-      <table v-if="resultado.variantes.length" class="tabla">
+      <table v-if="resultado.variantes.length" class="tabla tabla--apilable">
         <thead><tr><th>Gen</th><th>Variante</th><th>Clasificación</th><th></th></tr></thead>
         <tbody>
           <tr v-for="v in resultado.variantes" :key="`${v.gen}-${v.nomenclatura}`">
             <td><strong>{{ v.gen }}</strong></td>
-            <td><code>{{ v.nomenclatura }}</code></td>
-            <td>{{ titulo(v.clasificacion) }}</td>
+            <td data-etiqueta="Variante"><code>{{ v.nomenclatura }}</code></td>
+            <td data-etiqueta="Clasificación">{{ titulo(v.clasificacion) }}</td>
             <td><span v-if="v.hallazgo_secundario" class="suave">Hallazgo secundario</span></td>
           </tr>
         </tbody>
