@@ -140,6 +140,13 @@ class Parentesco(StrEnum):
     OTRO = "OTRO"
 
 
+class LadoFamiliar(StrEnum):
+    """Rama de abuelos, tíos y primos (la API de familiograma usa códigos distintos para cada lado)."""
+
+    MATERNO = "MATERNO"
+    PATERNO = "PATERNO"
+
+
 class TipoArchivo(StrEnum):
     FAMILIOGRAMA_PDF = "FAMILIOGRAMA_PDF"
     DECISION_JUDICIAL_PDF = "DECISION_JUDICIAL_PDF"

@@ -1,10 +1,11 @@
 from datetime import date, datetime
+from typing import Any
 
 from sqlalchemy import ForeignKey, Integer, func
-from sqlalchemy.dialects.postgresql import CITEXT
+from sqlalchemy.dialects.postgresql import CITEXT, JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.domain.enums import Parentesco, TipoSospecha
+from app.domain.enums import LadoFamiliar, Parentesco, TipoSospecha
 from app.models.base import Base, pg_enum
 
 
@@ -23,6 +24,8 @@ class Paciente(Base):
     nro_afiliado: Mapped[str | None]
     resumen_historia_clinica: Mapped[str]
     familiograma_archivo_id: Mapped[int | None] = mapped_column(ForeignKey("archivo.id"))
+    # Avisos del último Familiograma generado: [{codigo, mensaje}] (migración 0004)
+    familiograma_advertencias: Mapped[list[dict[str, Any]]] = mapped_column(JSONB, default=list)
     medico_alta_id: Mapped[int] = mapped_column(ForeignKey("profesional_medico.usuario_id"))
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
 
@@ -53,5 +56,9 @@ class Familiar(Base):
     paciente_id: Mapped[int] = mapped_column(ForeignKey("paciente.id", ondelete="CASCADE"))
     parentesco: Mapped[Parentesco] = mapped_column(pg_enum(Parentesco, "parentesco"))
     nombre: Mapped[str]
+    # Migración 0004: la API de familiograma exige apellido y el lado de abuelos, tíos y primos.
+    # Son nullable porque los familiares cargados antes no los tienen.
+    apellido: Mapped[str | None]
+    lado: Mapped[LadoFamiliar | None] = mapped_column(pg_enum(LadoFamiliar, "lado_familiar"))
     sintomas: Mapped[str | None]
     patologia_diagnosticada: Mapped[int | None] = mapped_column(Integer, ForeignKey("patologia.id"))

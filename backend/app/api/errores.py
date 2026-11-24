@@ -14,7 +14,10 @@ def _cuerpo(code: str, message: str) -> dict[str, str]:
 async def _error_negocio(_: Request, exc: Exception) -> JSONResponse:
     assert isinstance(exc, ErrorNegocio)
     headers = {"WWW-Authenticate": "Bearer"} if exc.status == 401 else None
-    return JSONResponse(_cuerpo(exc.code, exc.message), status_code=exc.status, headers=headers)
+    cuerpo: dict[str, object] = {**_cuerpo(exc.code, exc.message)}
+    if exc.campos:
+        cuerpo["campos"] = exc.campos
+    return JSONResponse(cuerpo, status_code=exc.status, headers=headers)
 
 
 async def _validacion(_: Request, exc: Exception) -> JSONResponse:

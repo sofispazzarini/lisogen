@@ -839,7 +839,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Cargar Familiograma (E3) */
+        /**
+         * Cargar Familiograma (E3)
+         * @description Agrega familiares (si llegan) y genera de nuevo la imagen con el árbol completo.
+         */
         post: operations["familiograma_medico_pacientes__paciente_id__familiograma_post"];
         delete?: never;
         options?: never;
@@ -1232,6 +1235,13 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** AdvertenciaSalida */
+        AdvertenciaSalida: {
+            /** Codigo */
+            codigo: string;
+            /** Mensaje */
+            mensaje: string;
+        };
         /** AgendaDia */
         AgendaDia: {
             /**
@@ -1586,6 +1596,10 @@ export interface components {
         };
         /** FamiliarEntrada */
         FamiliarEntrada: {
+            /** Apellido */
+            apellido: string;
+            /** @description Obligatorio para abuelos, tíos y primos; vacío para el resto. */
+            lado?: components["schemas"]["LadoFamiliar"] | null;
             /** Nombre */
             nombre: string;
             parentesco: components["schemas"]["Parentesco"];
@@ -1596,6 +1610,9 @@ export interface components {
         };
         /** FamiliarSalida */
         FamiliarSalida: {
+            /** Apellido */
+            apellido: string | null;
+            lado: components["schemas"]["LadoFamiliar"] | null;
             /** Nombre */
             nombre: string;
             parentesco: components["schemas"]["Parentesco"];
@@ -1606,8 +1623,11 @@ export interface components {
         };
         /** FamiliogramaEntrada */
         FamiliogramaEntrada: {
-            /** Familiares */
-            familiares: components["schemas"]["FamiliarEntrada"][];
+            /**
+             * Familiares
+             * @description Familiares nuevos. Vacío: regenera la imagen con los ya cargados.
+             */
+            familiares?: components["schemas"]["FamiliarEntrada"][];
         };
         /** GenEstudio */
         GenEstudio: {
@@ -1672,6 +1692,12 @@ export interface components {
             refresh_token?: string | null;
             usuario?: components["schemas"]["UsuarioSalida"] | null;
         };
+        /**
+         * LadoFamiliar
+         * @description Rama de abuelos, tíos y primos (la API de familiograma usa códigos distintos para cada lado).
+         * @enum {string}
+         */
+        LadoFamiliar: "MATERNO" | "PATERNO";
         /** LlegadaSalida */
         LlegadaSalida: {
             /** Lote En Formacion */
@@ -1862,6 +1888,13 @@ export interface components {
             estudios: components["schemas"]["EstudioResumen"][];
             /** Familiares */
             familiares: components["schemas"]["FamiliarSalida"][];
+            /** Familiograma Advertencias */
+            familiograma_advertencias: components["schemas"]["AdvertenciaSalida"][];
+            /**
+             * Familiograma Mime
+             * @description image/svg+xml, o application/pdf si es anterior a la API
+             */
+            familiograma_mime: string | null;
             /** Familiograma Url */
             familiograma_url: string | null;
             /**

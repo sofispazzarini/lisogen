@@ -1,6 +1,24 @@
 {
   "components": {
     "schemas": {
+      "AdvertenciaSalida": {
+        "properties": {
+          "codigo": {
+            "title": "Codigo",
+            "type": "string"
+          },
+          "mensaje": {
+            "title": "Mensaje",
+            "type": "string"
+          }
+        },
+        "required": [
+          "codigo",
+          "mensaje"
+        ],
+        "title": "AdvertenciaSalida",
+        "type": "object"
+      },
       "AgendaDia": {
         "properties": {
           "fecha": {
@@ -976,6 +994,23 @@
       },
       "FamiliarEntrada": {
         "properties": {
+          "apellido": {
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Apellido",
+            "type": "string"
+          },
+          "lado": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LadoFamiliar"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Obligatorio para abuelos, tíos y primos; vacío para el resto."
+          },
           "nombre": {
             "maxLength": 120,
             "minLength": 1,
@@ -1011,13 +1046,35 @@
         },
         "required": [
           "parentesco",
-          "nombre"
+          "nombre",
+          "apellido"
         ],
         "title": "FamiliarEntrada",
         "type": "object"
       },
       "FamiliarSalida": {
         "properties": {
+          "apellido": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Apellido"
+          },
+          "lado": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LadoFamiliar"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "nombre": {
             "title": "Nombre",
             "type": "string"
@@ -1051,6 +1108,8 @@
         "required": [
           "parentesco",
           "nombre",
+          "apellido",
+          "lado",
           "sintomas",
           "patologia_diagnosticada"
         ],
@@ -1060,17 +1119,14 @@
       "FamiliogramaEntrada": {
         "properties": {
           "familiares": {
+            "description": "Familiares nuevos. Vacío: regenera la imagen con los ya cargados.",
             "items": {
               "$ref": "#/components/schemas/FamiliarEntrada"
             },
-            "minItems": 1,
             "title": "Familiares",
             "type": "array"
           }
         },
-        "required": [
-          "familiares"
-        ],
         "title": "FamiliogramaEntrada",
         "type": "object"
       },
@@ -1284,6 +1340,15 @@
         ],
         "title": "IngresoSalida",
         "type": "object"
+      },
+      "LadoFamiliar": {
+        "description": "Rama de abuelos, tíos y primos (la API de familiograma usa códigos distintos para cada lado).",
+        "enum": [
+          "MATERNO",
+          "PATERNO"
+        ],
+        "title": "LadoFamiliar",
+        "type": "string"
       },
       "LlegadaSalida": {
         "properties": {
@@ -1824,6 +1889,25 @@
             "title": "Familiares",
             "type": "array"
           },
+          "familiograma_advertencias": {
+            "items": {
+              "$ref": "#/components/schemas/AdvertenciaSalida"
+            },
+            "title": "Familiograma Advertencias",
+            "type": "array"
+          },
+          "familiograma_mime": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "image/svg+xml, o application/pdf si es anterior a la API",
+            "title": "Familiograma Mime"
+          },
           "familiograma_url": {
             "anyOf": [
               {
@@ -1902,6 +1986,8 @@
           "diagnosticos",
           "familiares",
           "familiograma_url",
+          "familiograma_mime",
+          "familiograma_advertencias",
           "estudios"
         ],
         "title": "PacienteFicha",
@@ -6898,6 +6984,7 @@
     },
     "/medico/pacientes/{paciente_id}/familiograma": {
       "post": {
+        "description": "Agrega familiares (si llegan) y genera de nuevo la imagen con el árbol completo.",
         "operationId": "familiograma_medico_pacientes__paciente_id__familiograma_post",
         "parameters": [
           {

@@ -117,6 +117,7 @@ async def ficha_paciente(
 async def familiograma(
     paciente_id: int, datos: FamiliogramaEntrada, medico: Medico, session: Sesion, ints: Ints
 ) -> Ok:
+    """Agrega familiares (si llegan) y genera de nuevo la imagen con el árbol completo."""
     paciente = await pacientes.paciente_del_medico(session, medico, paciente_id)
     await pacientes.cargar_familiograma(session, ints, medico, paciente, datos.familiares)
     return Ok()
