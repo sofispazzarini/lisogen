@@ -18,8 +18,10 @@ from app.domain.enums import (
     ServicioExterno,
     TipoEstudio,
 )
+from app.integrations.apigen_api import ApigenNoDisponible
 from app.integrations.infra import MailMemoria
-from app.integrations.ports import ConceptoSnomed, ErrorSnomed
+from app.integrations.mock import BioinformaticaMock
+from app.integrations.ports import ConceptoSnomed, DetalleError, ErrorFamiliograma, ErrorSnomed
 from app.integrations.registro import Adaptadores
 from app.models import (
     AuditoriaAcceso,
@@ -38,7 +40,7 @@ from app.models import (
 from app.services.comun import ahora
 from tests import factories
 from tests.factories import headers
-from tests.falsos import SnomedFalla, SnomedFalso
+from tests.falsos import FamiliogramaConReglas, FamiliogramaFalla, SnomedFalla, SnomedFalso
 
 # Síntomas SNOMED del seed
 ACROPARESTESIA, ANGIOQUERATOMA, HIPOHIDROSIS, PROTEINURIA = 79256006, 254788004, 45004005, 29738008
@@ -299,11 +301,12 @@ async def test_alta_con_familiograma_y_ficha_auditada(
     familiares = [
         {
             "parentesco": "MADRE",
-            "nombre": "Marta Rivas",
+            "nombre": "Marta",
+            "apellido": "Rivas",
             "sintomas": "Insuficiencia renal",
             "patologia_diagnosticada_id": await _patologia(session, "Fabry"),
         },
-        {"parentesco": "HERMANO", "nombre": "Pablo Rivas"},
+        {"parentesco": "HERMANO", "nombre": "Pablo", "apellido": "Rivas"},
     ]
     r = await cliente.post(
         "/medico/pacientes",
@@ -316,6 +319,7 @@ async def test_alta_con_familiograma_y_ficha_auditada(
     r = await cliente.get(f"/medico/pacientes/{pid}", headers=headers(medico))
     ficha = r.json()
     assert ficha["familiograma_url"].startswith("memoria://familiograma_pdf/")
+    assert ficha["familiograma_mime"] == "image/svg+xml" and ficha["familiograma_advertencias"] == []
     assert [f["parentesco"] for f in ficha["familiares"]] == ["MADRE", "HERMANO"]
     assert ficha["familiares"][0]["patologia_diagnosticada"] == "Fabry"
     assert ficha["sintomas"] == [{"concept_id": ACROPARESTESIA, "termino": "Acroparestesia"}]
@@ -326,13 +330,213 @@ async def test_alta_con_familiograma_y_ficha_auditada(
     # E3 por separado: agrega familiares y regenera el PDF
     r = await cliente.post(
         f"/medico/pacientes/{pid}/familiograma",
-        json={"familiares": [{"parentesco": "TIA", "nombre": "Ana Rivas"}]},
+        json={"familiares": [{"parentesco": "TIA", "nombre": "Ana", "apellido": "Rivas", "lado": "MATERNO"}]},
         headers=headers(medico),
     )
     assert r.status_code == 200
     r = await cliente.get(f"/medico/pacientes/{pid}", headers=headers(medico))
     assert len(r.json()["familiares"]) == 3
     assert r.json()["familiograma_url"] != ficha["familiograma_url"]
+
+
+async def test_familiar_con_lado_segun_parentesco(
+    cliente: httpx.AsyncClient, session: AsyncSession, demo: dict[RolUsuario, Usuario]
+) -> None:
+    h = headers(demo[RolUsuario.MEDICO_TRATANTE])
+    for familiar in (
+        {"parentesco": "ABUELA", "nombre": "Rosa", "apellido": "Rivas"},  # falta el lado
+        {"parentesco": "PADRE", "nombre": "Raúl", "apellido": "Rivas", "lado": "PATERNO"},  # sobra
+        {"parentesco": "PADRE", "nombre": "Raúl"},  # falta el apellido
+    ):
+        r = await cliente.post(
+            "/medico/pacientes", json=await _alta_paciente(session, familiares=[familiar]), headers=h
+        )
+        assert r.status_code == 422 and r.json()["code"] == "DATOS_INVALIDOS", familiar
+
+
+async def test_familiograma_guarda_las_advertencias(
+    cliente: httpx.AsyncClient, session: AsyncSession, demo: dict[RolUsuario, Usuario]
+) -> None:
+    h = headers(demo[RolUsuario.MEDICO_TRATANTE])
+    familiares = [
+        {"parentesco": "MADRE", "nombre": "Marta", "apellido": "Rivas"},
+        {"parentesco": "OTRO", "nombre": "Elsa", "apellido": "Paz"},
+    ]
+    r = await cliente.post(
+        "/medico/pacientes", json=await _alta_paciente(session, familiares=familiares), headers=h
+    )
+    assert r.status_code == 201, r.text
+    ficha = (await cliente.get(f"/medico/pacientes/{r.json()['id']}", headers=h)).json()
+    assert [a["codigo"] for a in ficha["familiograma_advertencias"]] == ["PARENTESCO_SIN_CODIGO"]
+    assert "Elsa" not in ficha["familiograma_advertencias"][0]["mensaje"]
+    assert len(ficha["familiares"]) == 2  # el familiar se guarda aunque no se dibuje
+
+
+async def test_familiograma_422_de_la_api_se_muestra_con_los_campos(
+    cliente: httpx.AsyncClient,
+    session: AsyncSession,
+    demo: dict[RolUsuario, Usuario],
+    adaptadores: Adaptadores,
+) -> None:
+    h = headers(demo[RolUsuario.MEDICO_TRATANTE])
+    r = await cliente.post("/medico/pacientes", json=await _alta_paciente(session), headers=h)
+    pid = r.json()["id"]
+    falso = FamiliogramaFalla(
+        ErrorFamiliograma(
+            "API de familiograma HTTP 422",
+            status=422,
+            detalles=(DetalleError("personas.1.parentesco", "REFERENCIA_AMBIGUA: falta la madre"),),
+        )
+    )
+    adaptadores.familiograma = falso
+    r = await cliente.post(
+        f"/medico/pacientes/{pid}/familiograma",
+        json={
+            "familiares": [{"parentesco": "ABUELA", "nombre": "Rosa", "apellido": "Paz", "lado": "MATERNO"}]
+        },
+        headers=h,
+    )
+    assert r.status_code == 422
+    cuerpo = r.json()
+    assert cuerpo["code"] == "FAMILIOGRAMA_DATOS_INVALIDOS"
+    assert "Familiar n.º 1 (abuela materno): falta la madre" in cuerpo["message"]
+    assert cuerpo["campos"] == ["Familiar n.º 1 (abuela materno) · parentesco"]
+    assert [p.parentesco for p in falso.recibidas] == [0, 3]
+
+
+async def test_alta_sigue_aunque_falle_el_familiograma_y_se_regenera_desde_la_ficha(
+    cliente: httpx.AsyncClient,
+    session: AsyncSession,
+    demo: dict[RolUsuario, Usuario],
+    adaptadores: Adaptadores,
+) -> None:
+    h = headers(demo[RolUsuario.MEDICO_TRATANTE])
+    real = adaptadores.familiograma
+    adaptadores.familiograma = FamiliogramaFalla(ErrorFamiliograma("HTTP 502", status=502))
+    familiares = [{"parentesco": "MADRE", "nombre": "Marta", "apellido": "Rivas"}]
+    r = await cliente.post(
+        "/medico/pacientes", json=await _alta_paciente(session, familiares=familiares), headers=h
+    )
+    assert r.status_code == 201, r.text
+    pid = r.json()["id"]
+    ficha = (await cliente.get(f"/medico/pacientes/{pid}", headers=h)).json()
+    assert ficha["familiograma_url"] is None and len(ficha["familiares"]) == 1
+    assert [a["codigo"] for a in ficha["familiograma_advertencias"]] == ["FAMILIOGRAMA_PENDIENTE"]
+    log = await session.scalar(
+        select(IntegracionLog).where(IntegracionLog.servicio == ServicioExterno.FAMILIOGRAMA)
+    )
+    assert log is not None and not log.ok and "Marta" not in str(log.request)
+
+    # Vuelve la API: se regenera sin cargar familiares nuevos
+    adaptadores.familiograma = real
+    r = await cliente.post(f"/medico/pacientes/{pid}/familiograma", json={"familiares": []}, headers=h)
+    assert r.status_code == 200, r.text
+    ficha = (await cliente.get(f"/medico/pacientes/{pid}", headers=h)).json()
+    assert ficha["familiograma_mime"] == "image/svg+xml" and ficha["familiograma_advertencias"] == []
+    assert len(ficha["familiares"]) == 1
+
+
+async def test_familiograma_deja_fuera_a_quien_le_falta_su_referencia(
+    cliente: httpx.AsyncClient,
+    session: AsyncSession,
+    demo: dict[RolUsuario, Usuario],
+    adaptadores: Adaptadores,
+) -> None:
+    """Primo paterno → tío paterno → abuelo paterno: sin abuelo, la API rechaza al tío; sin tío, al primo.
+    Se dibuja el resto y cada exclusión queda como advertencia (no se inventan personas)."""
+    h = headers(demo[RolUsuario.MEDICO_TRATANTE])
+    falso = FamiliogramaConReglas()
+    adaptadores.familiograma = falso
+    familiares = [
+        {"parentesco": "MADRE", "nombre": "Marta", "apellido": "Rivas"},
+        {"parentesco": "TIO", "nombre": "Raúl", "apellido": "Rivas", "lado": "PATERNO"},
+        {"parentesco": "PRIMA", "nombre": "Sol", "apellido": "Rivas", "lado": "PATERNO"},
+    ]
+    r = await cliente.post(
+        "/medico/pacientes", json=await _alta_paciente(session, familiares=familiares), headers=h
+    )
+    pid = r.json()["id"]
+    ficha = (await cliente.get(f"/medico/pacientes/{pid}", headers=h)).json()
+    assert ficha["familiograma_mime"] == "image/svg+xml"
+    assert [a["codigo"] for a in ficha["familiograma_advertencias"]] == ["FAMILIAR_SIN_REFERENCIA"] * 2
+    assert (
+        "familiar n.º 2 (tio paterno): necesita un abuelo/a paterno/a"
+        in ficha["familiograma_advertencias"][0]["mensaje"]
+    )
+    assert falso.pedidos == [[0, 1, 6, 8], [0, 1, 8], [0, 1]]
+
+    # Con el abuelo paterno cargado, se dibujan todos
+    r = await cliente.post(
+        f"/medico/pacientes/{pid}/familiograma",
+        json={
+            "familiares": [{"parentesco": "ABUELO", "nombre": "José", "apellido": "Rivas", "lado": "PATERNO"}]
+        },
+        headers=h,
+    )
+    assert r.status_code == 200, r.text
+    ficha = (await cliente.get(f"/medico/pacientes/{pid}", headers=h)).json()
+    assert ficha["familiograma_advertencias"] == [] and falso.pedidos[-1] == [0, 1, 6, 8, 4]
+
+
+async def test_familiograma_error_que_no_es_de_referencia_se_muestra(
+    cliente: httpx.AsyncClient,
+    session: AsyncSession,
+    demo: dict[RolUsuario, Usuario],
+    adaptadores: Adaptadores,
+) -> None:
+    h = headers(demo[RolUsuario.MEDICO_TRATANTE])
+    pid = (await cliente.post("/medico/pacientes", json=await _alta_paciente(session), headers=h)).json()[
+        "id"
+    ]
+    adaptadores.familiograma = FamiliogramaConReglas()
+    r = await cliente.post(
+        f"/medico/pacientes/{pid}/familiograma",
+        json={
+            "familiares": [
+                {"parentesco": "MADRE", "nombre": "Marta", "apellido": "Rivas"},
+                {"parentesco": "PADRE", "nombre": "Raúl", "apellido": "Rivas"},
+                {"parentesco": "PADRE", "nombre": "Luis", "apellido": "Paz"},
+            ]
+        },
+        headers=h,
+    )
+    assert r.status_code == 422
+    assert "Familiar n.º 3 (padre): hay más de dos progenitores." in r.json()["message"]
+    ficha = (await cliente.get(f"/medico/pacientes/{pid}", headers=h)).json()
+    assert ficha["familiares"] == []  # E3 por separado: no se guarda nada
+
+
+@pytest.mark.parametrize(
+    ("status", "codigo", "http"),
+    [
+        (401, "FAMILIOGRAMA_NO_DISPONIBLE", 502),
+        (415, "FAMILIOGRAMA_ERROR_INTERNO", 502),
+        (413, "FAMILIOGRAMA_DEMASIADO_GRANDE", 422),
+        (502, "FAMILIOGRAMA_SIN_RESPUESTA", 502),
+        (0, "FAMILIOGRAMA_SIN_RESPUESTA", 502),
+    ],
+)
+async def test_familiograma_errores_de_la_api(
+    cliente: httpx.AsyncClient,
+    session: AsyncSession,
+    demo: dict[RolUsuario, Usuario],
+    adaptadores: Adaptadores,
+    status: int,
+    codigo: str,
+    http: int,
+) -> None:
+    h = headers(demo[RolUsuario.MEDICO_TRATANTE])
+    pid = (await cliente.post("/medico/pacientes", json=await _alta_paciente(session), headers=h)).json()[
+        "id"
+    ]
+    adaptadores.familiograma = FamiliogramaFalla(ErrorFamiliograma(f"HTTP {status}", status=status))
+    r = await cliente.post(
+        f"/medico/pacientes/{pid}/familiograma",
+        json={"familiares": [{"parentesco": "MADRE", "nombre": "Marta", "apellido": "Rivas"}]},
+        headers=h,
+    )
+    assert (r.status_code, r.json()["code"]) == (http, codigo)
+    assert "FAMILIOGRAMA_API_KEY" not in r.text
 
 
 async def test_alta_sin_familiares_deja_seccion_vacia(
@@ -427,6 +631,36 @@ async def test_alta_estudio_varias_patologias_suma_genes(
         headers=headers(demo[RolUsuario.MEDICO_TRATANTE]),
     )
     assert set(await _genes(session, r.json()["id"])) == {"GLA", "GBA1"}
+
+
+async def test_alta_estudio_revierte_si_fallan_los_hallazgos(
+    cliente: httpx.AsyncClient,
+    session: AsyncSession,
+    demo: dict[RolUsuario, Usuario],
+    adaptadores: Adaptadores,
+) -> None:
+    class CatalogoCaido(BioinformaticaMock):
+        async def genes_por_patologia(self, *, patologia: str) -> list[str]:
+            return ["GENNUEVO"]
+
+        async def genes_hallazgos_secundarios(self) -> list[str]:
+            raise ApigenNoDisponible()
+
+    adaptadores.bioinformatica = CatalogoCaido()
+    paciente = await session.scalar(select(Paciente))
+    assert paciente is not None
+    r = await cliente.post(
+        "/medico/estudios",
+        json={
+            "paciente_id": paciente.id,
+            "patologia_ids": [await _patologia(session, "Fabry")],
+            "evalua_hallazgos_secundarios": True,
+        },
+        headers=headers(demo[RolUsuario.MEDICO_TRATANTE]),
+    )
+    assert r.status_code == 502 and r.json()["code"] == "APIGEN_NO_DISPONIBLE"
+    assert await session.scalar(select(Estudio.id)) is None
+    assert await session.scalar(select(Gen.id).where(Gen.simbolo == "GENNUEVO")) is None
 
 
 @pytest.mark.parametrize(("dias", "urgente"), [(60, True), (130, False)])

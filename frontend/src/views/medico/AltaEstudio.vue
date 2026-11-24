@@ -3,7 +3,7 @@ import { computed, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { api, ok, type Esquemas } from '@/api/cliente'
 import Alerta from '@/components/Alerta.vue'
-import { usarAccion, usarCarga } from '@/utils/composables'
+import { mensajeDeError, usarAccion, usarCarga } from '@/utils/composables'
 import { usd } from '@/utils/formato'
 
 const route = useRoute()
@@ -19,27 +19,35 @@ const form = reactive({
 })
 const manuales = ref('')
 const sugeridos = ref<Record<number, Esquemas['GenesSugeridos']>>({})
+const pendientes = reactive(new Set<number>())
+const erroresGenes = ref<Record<number, string>>({})
 
 /** E4 ep. 2: el sistema obtiene de la API de bioinformática los genes de cada Patología elegida. */
-watch(
-  () => [...form.patologia_ids],
-  async (ids) => {
-    for (const id of ids) {
-      if (sugeridos.value[id]) continue
-      try {
-        sugeridos.value[id] = await ok(api.GET('/medico/patologias/{patologia_id}/genes', { params: { path: { patologia_id: id } } }))
-      } catch {
-        /* la API de bioinformática no respondió: el backend vuelve a consultarla al guardar */
-      }
+async function cargarGenes(ids: number[]): Promise<void> {
+  await Promise.all(ids.map(async (id) => {
+    if (sugeridos.value[id] || pendientes.has(id)) return
+    pendientes.add(id)
+    delete erroresGenes.value[id]
+    try {
+      sugeridos.value[id] = await ok(api.GET('/medico/patologias/{patologia_id}/genes', { params: { path: { patologia_id: id } } }))
+    } catch (e) {
+      erroresGenes.value[id] = mensajeDeError(e)
+    } finally {
+      pendientes.delete(id)
     }
-  },
-)
+  }))
+}
+
+watch(() => [...form.patologia_ids], cargarGenes)
+const errorGenes = computed(() => form.patologia_ids.map((id) => erroresGenes.value[id]).find(Boolean))
 
 const genesApi = computed(() => [...new Set(form.patologia_ids.flatMap((id) => sugeridos.value[id]?.genes ?? []))])
 const genesManuales = computed(() =>
   [...new Set(manuales.value.toUpperCase().split(/[\s,;]+/).filter(Boolean))].filter((g) => !genesApi.value.includes(g)),
 )
-const hallazgos = computed(() => Object.values(sugeridos.value)[0]?.hallazgos_secundarios ?? [])
+const hallazgos = computed(() =>
+  form.patologia_ids.map((id) => sugeridos.value[id]).find(Boolean)?.hallazgos_secundarios ?? [],
+)
 
 /** Estimación del Presupuesto (E16): USD 500 hasta 5 genes + USD 30 por gen adicional; los hallazgos no suman. */
 const estimado = computed(() => {
@@ -89,6 +97,10 @@ async function enviar(): Promise<void> {
             <span v-if="sugeridos[p.id]" class="suave">· {{ sugeridos[p.id]!.genes.join(', ') }}</span>
           </label>
         </fieldset>
+        <div v-if="errorGenes" class="fila">
+          <Alerta tipo="error">{{ errorGenes }}</Alerta>
+          <button class="boton" type="button" @click="cargarGenes(form.patologia_ids)">Reintentar consulta</button>
+        </div>
         <label class="campo">
           <span>Genes manuales</span>
           <input v-model="manuales" placeholder="Símbolos HGNC separados por coma, p. ej. TP53, MYH7" />

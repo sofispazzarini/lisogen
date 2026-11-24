@@ -23,6 +23,10 @@ class Settings(BaseSettings):
     # Integraciones: "mock" es el único modo implementado (DECISIONES T6)
     integraciones_modo: Literal["mock"] = "mock"
 
+    apigen_modo: Literal["mock", "api"] = "mock"
+    apigen_api_url: str = "https://edmrjmfjklwgazzztjcl.supabase.co/rest/v1"
+    apigen_api_key: str = ""
+
     # Cupones (API de Exoma Care): la clave es del grupo; va en .env, nunca en el repositorio
     cupones_modo: Literal["mock", "api"] = "mock"
     cupones_api_url: str = "https://vekuhonbpqtzakqbcoph.supabase.co/functions/v1/cupones-api"
@@ -37,6 +41,11 @@ class Settings(BaseSettings):
     snomed_modo: Literal["cache", "api"] = "cache"
     snomed_api_url: str = "https://hwmpslajqivdqeaylhdc.supabase.co/functions/v1/terminologia/sintomas"
     snomed_api_key: str = ""
+
+    # Familiograma (API del Laboratorio): la clave va en .env, nunca en el repositorio
+    familiograma_modo: Literal["mock", "api"] = "mock"
+    familiograma_api_url: str = "https://cnylfdemauswqeqmvwmz.supabase.co/functions/v1/familiograma"
+    familiograma_api_key: str = ""
 
     # Chatbot (GenLab): la apikey y el token van en .env, nunca en el repositorio
     chatbot_modo: Literal["mock", "api"] = "mock"

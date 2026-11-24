@@ -1,6 +1,7 @@
 """Adaptadores mock determinísticos: misma entrada → misma salida, sin red."""
 
 import hashlib
+import html
 import math
 import re
 import secrets
@@ -14,14 +15,18 @@ from typing import Final
 from sqlalchemy import ColumnElement, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.integrations import familiograma_mapeo
 from app.integrations.pdf import generar_pdf
 from app.integrations.ports import (
     ConceptoSnomed,
     CuponExterno,
     EstadoRetiroFedex,
-    FamiliarExterno,
+    Familiograma,
     Parada,
+    ParentescoCatalogo,
+    PersonaFamiliograma,
     Punto,
+    ReglaSospecha,
     RespuestaChat,
     RetiroFedex,
     SolicitudExterna,
@@ -80,7 +85,9 @@ class BioinformaticaMock:
     async def genes_hallazgos_secundarios(self) -> list[str]:
         return list(GENES_HALLAZGOS_SECUNDARIOS)
 
-    async def variantes_por_gen(self, *, gen: str) -> list[VarianteExterna]:
+    async def variantes_por_gen(
+        self, *, gen: str, texto: str = "", limite: int = 50, offset: int = 0
+    ) -> list[VarianteExterna]:
         gen = gen.upper()
         variantes = []
         if gen in VARIANTES_CONOCIDAS:
@@ -93,7 +100,12 @@ class BioinformaticaMock:
             if ref == alt:
                 alt = bases[(bases.index(ref) + 1) % 4]
             variantes.append(VarianteExterna(f"c.{pos}{ref}>{alt}", f"VAR-{gen}-{i}"))
-        return variantes
+        coincidencias = [v for v in variantes if texto.casefold() in v.nomenclatura.casefold()]
+        return coincidencias[offset : offset + limite]
+
+    async def variante_exacta(self, *, gen: str, nomenclatura: str) -> VarianteExterna | None:
+        variantes = await self.variantes_por_gen(gen=gen)
+        return next((v for v in variantes if v.nomenclatura == nomenclatura), None)
 
 
 class ObrasSocialesMock:
@@ -130,15 +142,29 @@ class ObrasSocialesMock:
 
 
 class FamiliogramaMock:
-    async def generar(self, *, familiares: list[FamiliarExterno]) -> bytes:
-        lineas = ["Árbol familiar declarado en la consulta.", ""]
-        for f in familiares:
-            lineas.append(f"- {f.parentesco.title()}: {f.nombre}")
-            if f.sintomas:
-                lineas.append(f"    Síntomas: {f.sintomas}")
-            if f.diagnostico:
-                lineas.append(f"    Diagnóstico previo: {f.diagnostico} (riesgo aumentado)")
-        return generar_pdf("Familiograma", lineas)
+    """Mismo contrato que la API (valida el payload y devuelve un SVG), sin red: una lista de las personas."""
+
+    async def generar(
+        self, *, personas: list[PersonaFamiliograma], regla_sospecha: ReglaSospecha = "desactivada"
+    ) -> Familiograma:
+        familiograma_mapeo.a_payload(personas, regla_sospecha)  # mismas validaciones que antes de la API
+        alto = 40 + 24 * len(personas)
+        lineas = [
+            f'<svg xmlns="http://www.w3.org/2000/svg" width="520" height="{alto}" viewBox="0 0 520 {alto}">',
+            '<text x="10" y="24" font-family="sans-serif" font-size="16">Familiograma (simulado)</text>',
+        ]
+        for i, p in enumerate(personas):
+            etiqueta = familiograma_mapeo.CATALOGO[p.parentesco]
+            diagnostico = f" · {', '.join(d.nombre for d in p.diagnosticos)}" if p.diagnosticos else ""
+            texto = html.escape(f"{etiqueta}: {p.nombre} {p.apellido}{diagnostico}")
+            lineas.append(
+                f'<text x="10" y="{52 + 24 * i}" font-family="sans-serif" font-size="13">{texto}</text>'
+            )
+        lineas.append("</svg>")
+        return Familiograma(contenido="\n".join(lineas).encode(), mime="image/svg+xml")
+
+    async def parentescos(self) -> list[ParentescoCatalogo]:
+        return [ParentescoCatalogo(i, e) for i, e in familiograma_mapeo.CATALOGO.items()]
 
 
 class SnomedCacheLocal:

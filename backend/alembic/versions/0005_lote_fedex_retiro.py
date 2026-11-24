@@ -1,14 +1,14 @@
-"""Id del retiro en FedEx: la API no tiene webhook y el estado se consulta por id (DECISIONES D2).
+"""Id del retiro en FedEx: la API no tiene webhook y el estado se consulta por id (DECISIONES D3).
 
-Revision ID: 0004_lote_fedex_retiro
-Revises: 0003_solicitud_obra_social
+Revision ID: 0005_lote_fedex_retiro
+Revises: 0004_familiograma_api
 Create Date: 2026-11-03
 """
 
 from alembic import op
 
-revision = "0004_lote_fedex_retiro"
-down_revision = "0003_solicitud_obra_social"
+revision = "0005_lote_fedex_retiro"
+down_revision = "0004_familiograma_api"
 branch_labels = None
 depends_on = None
 

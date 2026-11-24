@@ -13,12 +13,74 @@ class VarianteExterna:
     id_externo: str
 
 
+SexoFamiliograma = Literal["hombre", "mujer", "no_identificado"]
+ReglaSospecha = Literal["desactivada", "un_cardinal_o_dos_secundarios"]
+
+
 @dataclass(frozen=True)
-class FamiliarExterno:
-    parentesco: str
+class CodigoNombre:
+    """Síntoma o diagnóstico con el código del catálogo provisorio de la API (por ejemplo `SIM-FABRY`)."""
+
+    codigo: str
     nombre: str
-    sintomas: str | None
-    diagnostico: str | None
+
+
+@dataclass(frozen=True)
+class PersonaFamiliograma:
+    """Una persona del payload de la API de familiograma. `parentesco` es el código 0–15 del catálogo
+    (0 = el paciente). La arma sólo `familiograma_mapeo`."""
+
+    parentesco: int
+    nombre: str
+    apellido: str
+    sexo: SexoFamiliograma = "no_identificado"
+    edad: float | None = None
+    fallecido: bool = False
+    sintomas: tuple[CodigoNombre, ...] = ()
+    diagnosticos: tuple[CodigoNombre, ...] = ()
+
+
+@dataclass(frozen=True)
+class Advertencia:
+    codigo: str
+    mensaje: str
+
+
+@dataclass(frozen=True)
+class Familiograma:
+    """Imagen generada: SVG ya decodificado (y saneado) más los avisos de la API."""
+
+    contenido: bytes
+    mime: str
+    advertencias: tuple[Advertencia, ...] = ()
+
+
+@dataclass(frozen=True)
+class ParentescoCatalogo:
+    id: int
+    parentesco: str
+
+
+@dataclass(frozen=True)
+class DetalleError:
+    ruta: str
+    mensaje: str
+
+
+class ErrorFamiliograma(Exception):
+    """La API de familiograma rechazó el pedido o no respondió.
+
+    `status`: código HTTP (0 si no hubo respuesta). `codigo`: el `error.codigo` de la API. `detalles`: en un
+    422, un elemento por problema (`ruta` como `personas.2.parentesco`). El mensaje nunca incluye datos de
+    las personas ni la clave."""
+
+    def __init__(
+        self, mensaje: str, *, status: int = 0, codigo: str = "", detalles: tuple[DetalleError, ...] = ()
+    ) -> None:
+        super().__init__(mensaje)
+        self.status = status
+        self.codigo = codigo
+        self.detalles = detalles
 
 
 @dataclass(frozen=True)
@@ -68,7 +130,10 @@ class Parada:
 class BioinformaticaPort(Protocol):
     async def genes_por_patologia(self, *, patologia: str) -> list[str]: ...
     async def genes_hallazgos_secundarios(self) -> list[str]: ...
-    async def variantes_por_gen(self, *, gen: str) -> list[VarianteExterna]: ...
+    async def variantes_por_gen(
+        self, *, gen: str, texto: str = "", limite: int = 50, offset: int = 0
+    ) -> list[VarianteExterna]: ...
+    async def variante_exacta(self, *, gen: str, nomenclatura: str) -> VarianteExterna | None: ...
 
 
 @dataclass(frozen=True)
@@ -124,7 +189,15 @@ class ObrasSocialesPort(Protocol):
 
 
 class FamiliogramaPort(Protocol):
-    async def generar(self, *, familiares: list[FamiliarExterno]) -> bytes: ...
+    async def generar(
+        self, *, personas: list[PersonaFamiliograma], regla_sospecha: ReglaSospecha = "desactivada"
+    ) -> Familiograma:
+        """Arma la imagen del árbol completo. Exactamente una persona con parentesco 0."""
+        ...
+
+    async def parentescos(self) -> list[ParentescoCatalogo]:
+        """Catálogo de los 16 códigos de parentesco (`id`, etiqueta)."""
+        ...
 
 
 class ErrorSnomed(Exception):

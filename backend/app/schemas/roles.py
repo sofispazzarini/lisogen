@@ -4,7 +4,7 @@ from datetime import date, datetime
 from decimal import Decimal
 from typing import Annotated, Literal
 
-from pydantic import EmailStr, Field, StringConstraints
+from pydantic import EmailStr, Field, StringConstraints, model_validator
 
 from app.domain.enums import (
     ClasifVariante,
@@ -14,6 +14,7 @@ from app.domain.enums import (
     EstadoMuestra,
     EstadoParada,
     EstadoReaut,
+    LadoFamiliar,
     ModalidadPago,
     Parentesco,
     TipoSospecha,
@@ -28,11 +29,28 @@ TextoCorto = Annotated[str, StringConstraints(strip_whitespace=True, min_length=
 # --- Médico Tratante (E2–E6) ------------------------------------------------------------------
 
 
+_CON_LADO = frozenset(
+    {Parentesco.ABUELO, Parentesco.ABUELA, Parentesco.TIO, Parentesco.TIA, Parentesco.PRIMO, Parentesco.PRIMA}
+)
+
+
 class FamiliarEntrada(Esquema):
     parentesco: Parentesco
     nombre: TextoCorto
+    apellido: TextoCorto
+    lado: LadoFamiliar | None = Field(
+        default=None, description="Obligatorio para abuelos, tíos y primos; vacío para el resto."
+    )
     sintomas: str | None = Field(default=None, max_length=500)
     patologia_diagnosticada_id: int | None = None
+
+    @model_validator(mode="after")
+    def _lado_segun_parentesco(self) -> "FamiliarEntrada":
+        if self.parentesco in _CON_LADO and self.lado is None:
+            raise ValueError("indicá si es del lado materno o paterno")
+        if self.parentesco not in _CON_LADO and self.lado is not None:
+            raise ValueError("el lado sólo corresponde a abuelos, tíos y primos")
+        return self
 
 
 class DiagnosticoEntrada(Esquema):
@@ -56,7 +74,9 @@ class PacienteAlta(Esquema):
 
 
 class FamiliogramaEntrada(Esquema):
-    familiares: list[FamiliarEntrada] = Field(min_length=1)
+    familiares: list[FamiliarEntrada] = Field(
+        default_factory=list, description="Familiares nuevos. Vacío: regenera la imagen con los ya cargados."
+    )
 
 
 class BuscarEntrada(Esquema):
@@ -81,8 +101,15 @@ class DiagnosticoSalida(Esquema):
 class FamiliarSalida(Esquema):
     parentesco: Parentesco
     nombre: str
+    apellido: str | None
+    lado: LadoFamiliar | None
     sintomas: str | None
     patologia_diagnosticada: str | None
+
+
+class AdvertenciaSalida(Esquema):
+    codigo: str
+    mensaje: str
 
 
 class PacienteFicha(Esquema):
@@ -101,6 +128,10 @@ class PacienteFicha(Esquema):
     diagnosticos: list[DiagnosticoSalida]
     familiares: list[FamiliarSalida]
     familiograma_url: str | None
+    familiograma_mime: str | None = Field(
+        description="image/svg+xml, o application/pdf si es anterior a la API"
+    )
+    familiograma_advertencias: list[AdvertenciaSalida]
     estudios: list[EstudioResumen]
 
 

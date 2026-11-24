@@ -92,10 +92,17 @@ async function solicitarReanalisis(): Promise<void> {
 
           <div class="tarjeta formulario">
             <h2>Familiograma</h2>
-            <a v-if="ficha.familiograma_url" :href="ficha.familiograma_url" target="_blank" rel="noopener" class="boton">Ver Familiograma (PDF)</a>
+            <template v-if="ficha.familiograma_url">
+              <!-- SVG saneado en el backend; en <img> además no ejecuta scripts -->
+              <img v-if="ficha.familiograma_mime === 'image/svg+xml'" :src="ficha.familiograma_url" alt="Familiograma del Paciente" class="familiograma" />
+              <a :href="ficha.familiograma_url" class="boton boton--chico" rel="noopener">
+                {{ ficha.familiograma_mime === 'image/svg+xml' ? 'Descargar Familiograma (SVG)' : 'Ver Familiograma (PDF)' }}
+              </a>
+            </template>
+            <Alerta v-for="(a, i) in ficha.familiograma_advertencias" :key="`adv-${i}`" tipo="info">{{ a.mensaje }}</Alerta>
             <ul v-if="ficha.familiares.length" class="lista-plana">
               <li v-for="(f, i) in ficha.familiares" :key="i">
-                <strong>{{ titulo(f.parentesco) }}</strong>: {{ f.nombre }}
+                <strong>{{ titulo(f.parentesco) }}<template v-if="f.lado"> {{ f.lado.toLowerCase() }}</template></strong>: {{ f.nombre }}<template v-if="f.apellido"> {{ f.apellido }}</template>
                 <span v-if="f.patologia_diagnosticada" class="suave"> · diagnóstico de {{ f.patologia_diagnosticada }}</span>
                 <span v-if="f.sintomas" class="suave"> · {{ f.sintomas }}</span>
               </li>
@@ -106,6 +113,9 @@ async function solicitarReanalisis(): Promise<void> {
             <Alerta v-if="familiograma.exito.value" tipo="exito">{{ familiograma.exito.value }}</Alerta>
             <button v-if="familiares.length" class="boton" type="button" :disabled="familiograma.enCurso.value" @click="cargarFamiliograma">
               Guardar familiares y generar Familiograma
+            </button>
+            <button v-else-if="ficha.familiares.length" class="boton boton--chico" type="button" :disabled="familiograma.enCurso.value" @click="cargarFamiliograma">
+              Generar Familiograma de nuevo
             </button>
           </div>
         </div>
@@ -141,3 +151,7 @@ async function solicitarReanalisis(): Promise<void> {
     </Estado>
   </section>
 </template>
+
+<style scoped>
+.familiograma { display: block; max-width: 100%; height: auto; background: #fff; border: 1px solid var(--color-borde); border-radius: var(--radio-chico); }
+</style>

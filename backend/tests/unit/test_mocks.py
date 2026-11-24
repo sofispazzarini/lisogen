@@ -10,7 +10,7 @@ import pytest
 from app.integrations import mock
 from app.integrations.infra import MailMemoria, StorageMemoria
 from app.integrations.pdf import es_pdf, generar_pdf
-from app.integrations.ports import FamiliarExterno, Parada, Punto
+from app.integrations.ports import CodigoNombre, Parada, PersonaFamiliograma, Punto
 from app.integrations.registro import CAMPOS_SENSIBLES, _resumir
 
 # --- Bioinformática ---------------------------------------------------------------------------
@@ -77,14 +77,27 @@ async def test_cobertura(codigo: str, pct: int) -> None:
     )
 
 
-async def test_familiograma_pdf() -> None:
-    pdf = await mock.FamiliogramaMock().generar(
-        familiares=[
-            FamiliarExterno("MADRE", "Marta", "Dolor de manos", "Fabry"),
-            FamiliarExterno("TIO", "Juan", None, None),
+async def test_familiograma_svg_con_el_contrato_de_la_api() -> None:
+    imagen = await mock.FamiliogramaMock().generar(
+        personas=[
+            PersonaFamiliograma(0, "Lucía", "Rivas"),
+            PersonaFamiliograma(
+                1, "Marta", "Rivas", "mujer", diagnosticos=(CodigoNombre("SIM-FABRY", "Fabry"),)
+            ),
+            PersonaFamiliograma(5, "Juan", "<Gómez>", "hombre"),
         ]
     )
-    assert es_pdf(pdf) and b"Marta" in pdf and b"riesgo aumentado" in pdf
+    assert imagen.mime == "image/svg+xml" and imagen.advertencias == ()
+    svg = imagen.contenido.decode()
+    assert svg.startswith("<svg") and "progenitor: Marta Rivas · Fabry" in svg
+    assert "&lt;Gómez&gt;" in svg and "<Gómez>" not in svg  # escapa el texto
+
+
+async def test_familiograma_mock_exige_un_solo_paciente() -> None:
+    from app.integrations.familiograma_mapeo import ErrorMapeo
+
+    with pytest.raises(ErrorMapeo, match="exactamente un paciente"):
+        await mock.FamiliogramaMock().generar(personas=[PersonaFamiliograma(1, "Marta", "Rivas")])
 
 
 async def test_ministerio_devuelve_autorizacion_estable() -> None:

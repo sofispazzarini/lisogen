@@ -25,15 +25,21 @@ BACKEND = Path(__file__).resolve().parents[1]
 
 def pytest_configure(config: pytest.Config) -> None:
     """Mail y archivos en memoria, sin scheduler. Se fija antes de importar la app (Settings se cachea)."""
-    for clave, valor in {
-        "ENTORNO": "test",
-        "MAIL_MODO": "memoria",
-        "STORAGE_MODO": "memoria",
-        "SCHEDULER_ACTIVO": "false",
-    }.items():
-        os.environ.setdefault(clave, valor)
+    os.environ.setdefault("ENTORNO", "test")
+    # Se fuerzan (no setdefault): con el .env cargado, MAIL_MODO=api mandaría mails reales
+    os.environ["MAIL_MODO"] = "memoria"
+    os.environ["STORAGE_MODO"] = "memoria"
+    os.environ["SCHEDULER_ACTIVO"] = "false"
     # Los tests nunca llaman a las APIs reales, aunque el .env (o el contenedor) diga "api"
-    for modo in ("CUPONES_MODO", "RUTAS_MODO", "CHATBOT_MODO", "OBRAS_SOCIALES_MODO", "FEDEX_MODO"):
+    for modo in (
+        "APIGEN_MODO",
+        "CUPONES_MODO",
+        "RUTAS_MODO",
+        "CHATBOT_MODO",
+        "OBRAS_SOCIALES_MODO",
+        "FAMILIOGRAMA_MODO",
+        "FEDEX_MODO",
+    ):
         os.environ[modo] = "mock"
     os.environ["SNOMED_MODO"] = "cache"
     get_settings.cache_clear()

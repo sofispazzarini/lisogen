@@ -1,12 +1,14 @@
 """E27 Tomar Estudio para análisis y E28 Cargar Variantes (Resultado)."""
 
-from sqlalchemy import select
+from sqlalchemy import select, tuple_
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.domain.enums import EstadoEstudio, OrigenGen, RolUsuario, TipoArchivo, TipoResultado
 from app.domain.errores import Conflicto, ErrorNegocio, NoEncontrado, SinPermiso
 from app.domain.reglas import tipo_resultado
 from app.integrations.pdf import generar_pdf
+from app.integrations.ports import VarianteExterna
 from app.integrations.registro import Integraciones
 from app.models import (
     DatosCrudos,
@@ -102,30 +104,48 @@ async def _gen_del_estudio(session: AsyncSession, estudio: Estudio, simbolo: str
     return fila[0], fila[1]
 
 
-async def _catalogo(session: AsyncSession, ints: Integraciones, estudio: Estudio, gen: Gen) -> list[Variante]:
-    """E28 ep. 2: Variantes del gen según la API de bioinformática, cacheadas en `variante`."""
-    externas = await ints.para_estudio(estudio.id).bioinformatica.variantes_por_gen(gen=gen.simbolo)
-    cacheadas = {
-        v.nomenclatura: v for v in await session.scalars(select(Variante).where(Variante.gen_id == gen.id))
-    }
-    for ext in externas:
-        if ext.nomenclatura not in cacheadas:
-            v = Variante(gen_id=gen.id, nomenclatura=ext.nomenclatura, id_externo=ext.id_externo)
-            session.add(v)
-            cacheadas[ext.nomenclatura] = v
-    await session.flush()
-    return [cacheadas[e.nomenclatura] for e in externas]
-
-
 async def variantes_de_gen(
-    session: AsyncSession, ints: Integraciones, bio: Usuario, estudio_id: int, simbolo: str
+    session: AsyncSession,
+    ints: Integraciones,
+    bio: Usuario,
+    estudio_id: int,
+    simbolo: str,
+    *,
+    texto: str = "",
+    limite: int = 50,
+    offset: int = 0,
 ) -> list[VarianteCatalogo]:
     estudio = await _mio_en_analisis(session, bio, estudio_id)
     gen, _ = await _gen_del_estudio(session, estudio, simbolo)
-    return [
-        VarianteCatalogo(nomenclatura=v.nomenclatura, id_externo=v.id_externo)
-        for v in await _catalogo(session, ints, estudio, gen)
-    ]
+    externas = await ints.para_estudio(estudio.id).bioinformatica.variantes_por_gen(
+        gen=gen.simbolo, texto=texto, limite=limite, offset=offset
+    )
+    return [VarianteCatalogo(nomenclatura=v.nomenclatura, id_externo=v.id_externo) for v in externas]
+
+
+async def _guardar_variantes(
+    session: AsyncSession, seleccionadas: dict[tuple[int, str], VarianteExterna]
+) -> dict[tuple[int, str], Variante]:
+    if not seleccionadas:
+        return {}
+    await session.execute(
+        insert(Variante)
+        .values(
+            [
+                {
+                    "gen_id": gen_id,
+                    "nomenclatura": nombre,
+                    "id_externo": seleccionadas[gen_id, nombre].id_externo,
+                }
+                for gen_id, nombre in sorted(seleccionadas)
+            ]
+        )
+        .on_conflict_do_nothing(index_elements=[Variante.gen_id, Variante.nomenclatura])
+    )
+    variantes = await session.scalars(
+        select(Variante).where(tuple_(Variante.gen_id, Variante.nomenclatura).in_(seleccionadas))
+    )
+    return {(v.gen_id, v.nomenclatura): v for v in variantes}
 
 
 _CONCLUSION = {
@@ -150,20 +170,27 @@ async def confirmar_resultado(
         raise Conflicto("ESTUDIO_NO_EN_ANALISIS", "Primero tenés que tomar el Estudio.")
     if estudio.bioinformatico_id != bio.id or bio.rol != RolUsuario.BIOINFORMATICO:
         raise SinPermiso("Ese Estudio lo está analizando otro Bioinformático.")
-    vistas: set[tuple[str, str]] = set()
-    filas: list[tuple[Gen, Variante, ResultadoVariante]] = []
+    catalogo = ints.para_estudio(estudio.id).bioinformatica
+    seleccionadas: dict[tuple[int, str], VarianteExterna] = {}
+    elegidas = []
     for v in datos.variantes:
-        if (v.gen, v.nomenclatura) in vistas:
-            raise ErrorNegocio("VARIANTE_REPETIDA", f"La Variante {v.gen} {v.nomenclatura} está repetida.")
-        vistas.add((v.gen, v.nomenclatura))
         gen, eg = await _gen_del_estudio(session, estudio, v.gen)
-        catalogo = {c.nomenclatura: c for c in await _catalogo(session, ints, estudio, gen)}
-        variante = catalogo.get(v.nomenclatura)
-        if variante is None:
+        clave = (gen.id, v.nomenclatura)
+        if clave in seleccionadas:
+            raise ErrorNegocio("VARIANTE_REPETIDA", f"La Variante {v.gen} {v.nomenclatura} está repetida.")
+        externa = await catalogo.variante_exacta(gen=gen.simbolo, nomenclatura=v.nomenclatura)
+        if externa is None:
             raise ErrorNegocio(
                 "VARIANTE_DESCONOCIDA",
                 f"La API de bioinformática no informa la Variante {v.nomenclatura} en {gen.simbolo}.",
             )
+        seleccionadas[clave] = externa
+        elegidas.append((gen, eg, v))
+
+    guardadas = await _guardar_variantes(session, seleccionadas)
+    filas: list[tuple[Gen, Variante, ResultadoVariante]] = []
+    for gen, eg, v in elegidas:
+        variante = guardadas[gen.id, v.nomenclatura]
         filas.append(
             (
                 gen,

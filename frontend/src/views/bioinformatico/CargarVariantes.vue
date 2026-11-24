@@ -5,39 +5,75 @@ import { api, ok, type Esquemas } from '@/api/cliente'
 import Alerta from '@/components/Alerta.vue'
 import BadgeUrgente from '@/components/BadgeUrgente.vue'
 import Estado from '@/components/Estado.vue'
-import { usarAccion, usarCarga } from '@/utils/composables'
+import { mensajeDeError, usarAccion, usarCarga } from '@/utils/composables'
 import { titulo } from '@/utils/formato'
 
 type Clasif = Esquemas['ClasifVariante']
 const CLASIFICACIONES: Clasif[] = ['PATOGENICA', 'SIGNIFICADO_INCIERTO', 'BENIGNA']
+const TAMANO_PAGINA = 20
 
 const props = defineProps<{ id: string }>()
 const router = useRouter()
 const path = computed(() => ({ params: { path: { estudio_id: Number(props.id) } } }))
 const { datos: estudio, cargando, error } = usarCarga(() => ok(api.GET('/bioinformatico/estudios/{estudio_id}', path.value)))
 
-const catalogo = ref<Record<string, Esquemas['VarianteCatalogo'][]>>({})
-const seleccion = reactive({ gen: '', nomenclatura: '', clasificacion: 'PATOGENICA' as Clasif })
+const catalogo = ref<Esquemas['VarianteCatalogo'][]>([])
+const seleccion = reactive({ gen: '', nomenclatura: '', clasificacion: null as Clasif | null })
 const variantes = ref<Esquemas['VarianteEntrada'][]>([])
-const consulta = usarAccion()
 const confirmacion = usarAccion()
+const filtro = ref('')
+const textoBuscado = ref('')
+const offset = ref(0)
+const hayMas = ref(false)
+const buscando = ref(false)
+const errorBusqueda = ref<string | null>(null)
+let consultaActual = 0
 
 /** E28 ep. 1–2: el sistema obtiene de la API de bioinformática las Variantes del gen elegido. */
 async function elegirGen(gen: string): Promise<void> {
   seleccion.gen = gen
+  filtro.value = ''
+  await buscar()
+}
+
+async function buscar(): Promise<void> {
+  textoBuscado.value = filtro.value.trim()
+  await cargarPagina(0)
+}
+
+async function cargarPagina(posicion: number): Promise<void> {
+  const consulta = ++consultaActual
+  offset.value = posicion
   seleccion.nomenclatura = ''
-  if (catalogo.value[gen]) return
-  const r = await consulta.ejecutar(() =>
-    ok(api.GET('/bioinformatico/estudios/{estudio_id}/genes/{simbolo}/variantes', { params: { path: { estudio_id: Number(props.id), simbolo: gen } } })),
-  )
-  if (r) catalogo.value[gen] = r
+  seleccion.clasificacion = null
+  catalogo.value = []
+  hayMas.value = false
+  errorBusqueda.value = null
+  buscando.value = true
+  try {
+    const pagina = await ok(api.GET('/bioinformatico/estudios/{estudio_id}/genes/{simbolo}/variantes', {
+      params: {
+        path: { estudio_id: Number(props.id), simbolo: seleccion.gen },
+        query: { q: textoBuscado.value, limite: TAMANO_PAGINA + 1, offset: posicion },
+      },
+    }))
+    if (consulta !== consultaActual) return
+    catalogo.value = pagina.slice(0, TAMANO_PAGINA)
+    hayMas.value = pagina.length > TAMANO_PAGINA
+  } catch (e) {
+    if (consulta === consultaActual) errorBusqueda.value = mensajeDeError(e)
+  } finally {
+    if (consulta === consultaActual) buscando.value = false
+  }
 }
 
 function agregar(): void {
-  if (!seleccion.gen || !seleccion.nomenclatura) return
-  if (variantes.value.some((v) => v.gen === seleccion.gen && v.nomenclatura === seleccion.nomenclatura)) return
-  variantes.value = [...variantes.value, { ...seleccion }]
+  const { gen, nomenclatura, clasificacion } = seleccion
+  if (!gen || !nomenclatura || !clasificacion) return
+  if (variantes.value.some((v) => v.gen === gen && v.nomenclatura === nomenclatura)) return
+  variantes.value = [...variantes.value, { gen, nomenclatura, clasificacion }]
   seleccion.nomenclatura = ''
+  seleccion.clasificacion = null
 }
 
 const esHallazgo = (gen: string) => estudio.value?.genes.find((g) => g.simbolo === gen)?.origen === 'HALLAZGO_SECUNDARIO'
@@ -89,21 +125,38 @@ async function confirmar(): Promise<void> {
                 {{ g.simbolo }}<small v-if="g.origen === 'HALLAZGO_SECUNDARIO'">&nbsp;(hallazgo)</small>
               </button>
             </div>
-            <Alerta v-if="consulta.error.value" tipo="error">{{ consulta.error.value }}</Alerta>
-            <template v-if="seleccion.gen && catalogo[seleccion.gen]">
+            <template v-if="seleccion.gen">
               <h2>2. Variante encontrada y clasificación</h2>
-              <label class="campo">
+              <form class="fila" @submit.prevent="buscar">
+                <label class="campo">
+                  <span>Buscar por nomenclatura</span>
+                  <input v-model="filtro" type="search" placeholder="Ej. c.-32-13T>G" maxlength="120" />
+                </label>
+                <button class="boton" type="submit">Buscar</button>
+              </form>
+              <p v-if="buscando" role="status">Buscando variantes…</p>
+              <template v-else-if="errorBusqueda">
+                <Alerta tipo="error">{{ errorBusqueda }}</Alerta>
+                <button class="boton" type="button" @click="cargarPagina(offset)">Reintentar</button>
+              </template>
+              <p v-else-if="!catalogo.length" role="status">No se encontraron variantes.</p>
+              <label v-else class="campo">
                 <span>Variante en {{ seleccion.gen }} (API de bioinformática)</span>
-                <select v-model="seleccion.nomenclatura">
+                <select v-model="seleccion.nomenclatura" @change="seleccion.clasificacion = null">
                   <option value="" disabled>Elegí la Variante</option>
-                  <option v-for="v in catalogo[seleccion.gen]" :key="v.nomenclatura" :value="v.nomenclatura">{{ v.nomenclatura }}</option>
+                  <option v-for="v in catalogo" :key="v.nomenclatura" :value="v.nomenclatura">{{ v.nomenclatura }}</option>
                 </select>
               </label>
+              <div v-if="!buscando && !errorBusqueda && (offset || hayMas)" class="fila">
+                <button class="boton boton--chico" type="button" :disabled="offset === 0" @click="cargarPagina(offset - TAMANO_PAGINA)">Anterior</button>
+                <span>Página {{ offset / TAMANO_PAGINA + 1 }}</span>
+                <button class="boton boton--chico" type="button" :disabled="!hayMas" @click="cargarPagina(offset + TAMANO_PAGINA)">Siguiente</button>
+              </div>
               <fieldset class="campo">
                 <legend>Clasificación</legend>
                 <label v-for="c in CLASIFICACIONES" :key="c" class="fila"><input v-model="seleccion.clasificacion" type="radio" :value="c" /> {{ titulo(c) }}</label>
               </fieldset>
-              <button class="boton" type="button" :disabled="!seleccion.nomenclatura" @click="agregar">Agregar Variante</button>
+              <button class="boton" type="button" :disabled="!seleccion.nomenclatura || !seleccion.clasificacion" @click="agregar">Agregar Variante</button>
             </template>
           </div>
           <div class="tarjeta formulario">

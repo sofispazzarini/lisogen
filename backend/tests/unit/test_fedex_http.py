@@ -119,5 +119,11 @@ async def test_consultar_respuesta_invalida(respuesta: httpx.Response) -> None:
 
 def test_modo_real_exige_configuracion_sin_mostrar_la_clave() -> None:
     with pytest.raises(ValueError, match="FEDEX_API_URL") as e:
-        Settings(_env_file=None, fedex_modo="api", fedex_password="clave-secreta")  # type: ignore[call-arg]
+        Settings(  # type: ignore[call-arg]
+            _env_file=None,
+            fedex_modo="api",
+            fedex_api_url="",
+            fedex_usuario="",
+            fedex_password="clave-secreta",
+        )
     assert "clave-secreta" not in str(e.value)
