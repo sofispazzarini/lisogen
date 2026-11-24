@@ -40,7 +40,7 @@ function pintar(): void {
   for (const m of props.marcadores) {
     const punto = L.circleMarker([m.lat, m.lon], {
       radius: m.destacado ? 11 : 8,
-      color: m.destacado ? '#c62828' : '#1d4e89',
+      color: m.destacado ? '#b3261e' : '#0e6a67',
       weight: 2,
       fillOpacity: 0.85,
     })
@@ -49,7 +49,7 @@ function pintar(): void {
     capa.addLayer(punto)
   }
   if (props.ruta && props.marcadores.length > 1) {
-    capa.addLayer(L.polyline(props.marcadores.map((m) => [m.lat, m.lon] as [number, number]), { color: '#0f8a6c', dashArray: '6 6' }))
+    capa.addLayer(L.polyline(props.marcadores.map((m) => [m.lat, m.lon] as [number, number]), { color: '#2e6b3f', dashArray: '6 6' }))
   }
   if (props.marcadores.length === 1) {
     const m = props.marcadores[0]!

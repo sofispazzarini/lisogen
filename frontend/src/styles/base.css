@@ -1,64 +1,81 @@
-/* LisoGen · estilos base con variables CSS (sin librerías de UI). */
+/* LisoGen · estilos base con variables CSS (sin librerías de UI).
+   Diseño: papel frío, tinta verde-azulada y un solo acento teal. El rojo queda reservado a lo urgente y a
+   los errores. Títulos en Source Serif 4 y texto en IBM Plex Sans (servidas por la app, ver main.ts). */
 
 :root {
-  --color-fondo: #f4f6f9;
+  --color-fondo: #f2f4f0; /* papel */
   --color-superficie: #ffffff;
-  --color-superficie-2: #f8fafc;
-  --color-borde: #dde3ea;
-  --color-texto: #1b2533;
-  --color-texto-suave: #5b6878;
-  --color-primario: #1d4e89;
-  --color-primario-hover: #163d6b;
-  --color-primario-suave: #e6eef8;
-  --color-acento: #0f8a6c;
+  --color-superficie-2: #f7f8f5;
+  --color-borde: #d9dfd8;
+  --color-texto: #17262b; /* tinta */
+  --color-texto-suave: #56666a;
+  --color-primario: #0e6a67; /* acento teal */
+  --color-primario-hover: #0a5452;
+  --color-primario-suave: #ddeeeb;
+  --color-sobre-primario: #ffffff;
+  --color-acento: #2e6b3f; /* "hecho" */
 
-  --tono-neutro-fondo: #eef1f5;
-  --tono-neutro-texto: #3f4b5b;
-  --tono-accion-fondo: #fff3d6;
-  --tono-accion-texto: #7a5300;
-  --tono-alerta-fondo: #ffe8cc;
-  --tono-alerta-texto: #8a4100;
-  --tono-error-fondo: #fde4e4;
-  --tono-error-texto: #a1181f;
-  --tono-progreso-fondo: #e3edfb;
-  --tono-progreso-texto: #1d4e89;
-  --tono-exito-fondo: #dff4ea;
-  --tono-exito-texto: #0b6b4f;
-  --color-urgente: #c62828;
+  --tono-neutro-fondo: #eceee9;
+  --tono-neutro-texto: #3e4d51;
+  --tono-accion-fondo: #f5edd9;
+  --tono-accion-texto: #6f4e0c;
+  --tono-alerta-fondo: #f7e5d1;
+  --tono-alerta-texto: #84420f;
+  --tono-error-fondo: #fbe7e4;
+  --tono-error-texto: #b3261e;
+  --tono-progreso-fondo: #ddeeeb;
+  --tono-progreso-texto: #0e6a67;
+  --tono-exito-fondo: #e1efe4;
+  --tono-exito-texto: #2e6b3f;
+  --color-urgente: #b3261e;
+  --color-urgente-suave: #fbe7e4;
+  --color-sobre-urgente: #ffffff;
 
-  --radio: 10px;
-  --radio-chico: 6px;
-  --sombra: 0 1px 2px rgb(15 23 42 / 6%), 0 4px 12px rgb(15 23 42 / 6%);
+  --radio: 14px;
+  --radio-chico: 8px;
+  --radio-panel: 12px;
+  --sombra: 0 1px 2px rgb(23 38 43 / 5%);
+  --sombra-flotante: 0 14px 34px rgb(23 38 43 / 14%);
   --espacio: 16px;
-  --fuente: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-  --ancho-max: 1180px;
+  --fuente: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --fuente-titulos: 'Source Serif 4', Georgia, 'Times New Roman', serif;
+  --ancho-max: 960px; /* columna de lectura */
   color-scheme: light;
 }
 
+/* Oscuro: la misma lógica sobre tinta oscura; el teal se aclara para mantener el contraste */
 @media (prefers-color-scheme: dark) {
   :root {
-    --color-fondo: #0f141b;
-    --color-superficie: #171e27;
-    --color-superficie-2: #1d2631;
-    --color-borde: #2c3846;
-    --color-texto: #e6ebf1;
-    --color-texto-suave: #9aa8b8;
-    --color-primario: #5c9be6;
-    --color-primario-hover: #7cb0ef;
-    --color-primario-suave: #1c2d44;
-    --tono-neutro-fondo: #243041;
-    --tono-neutro-texto: #c9d3df;
-    --tono-accion-fondo: #3a2f12;
-    --tono-accion-texto: #f3cf7a;
-    --tono-alerta-fondo: #3d2a14;
-    --tono-alerta-texto: #f6b977;
-    --tono-error-fondo: #3d1a1d;
-    --tono-error-texto: #f4a2a6;
-    --tono-progreso-fondo: #1b2b42;
-    --tono-progreso-texto: #9cc3f3;
-    --tono-exito-fondo: #13342a;
-    --tono-exito-texto: #8be0bf;
-    --color-urgente: #ff6b6b;
+    --color-fondo: #0f1719;
+    --color-superficie: #162124;
+    --color-superficie-2: #1b282b;
+    --color-borde: #2b3b3e;
+    --color-texto: #e4ecea;
+    --color-texto-suave: #9db0ae;
+    --color-primario: #5fc2bc;
+    --color-primario-hover: #82d3ce;
+    --color-primario-suave: #163735;
+    --color-sobre-primario: #0b1f21;
+    --color-acento: #7cc48f;
+
+    --tono-neutro-fondo: #233235;
+    --tono-neutro-texto: #c5d3d1;
+    --tono-accion-fondo: #382f19;
+    --tono-accion-texto: #e8ca85;
+    --tono-alerta-fondo: #3c2a17;
+    --tono-alerta-texto: #efb57c;
+    --tono-error-fondo: #3d1d1b;
+    --tono-error-texto: #f4a49c;
+    --tono-progreso-fondo: #163735;
+    --tono-progreso-texto: #82d3ce;
+    --tono-exito-fondo: #17321f;
+    --tono-exito-texto: #93d3a3;
+    --color-urgente: #f2766b;
+    --color-urgente-suave: #3d1d1b;
+    --color-sobre-urgente: #2a0d0b;
+
+    --sombra: 0 1px 2px rgb(0 0 0 / 30%);
+    --sombra-flotante: 0 14px 34px rgb(0 0 0 / 45%);
     color-scheme: dark;
   }
 }
@@ -76,7 +93,8 @@ body {
   color: var(--color-texto);
   font-family: var(--fuente);
   font-size: 15px;
-  line-height: 1.5;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
   overflow-wrap: break-word; /* códigos, mails y URLs largos se cortan en vez de ensanchar la página */
 }
 
@@ -91,16 +109,40 @@ a {
 h1,
 h2,
 h3 {
-  line-height: 1.25;
+  line-height: 1.2;
   margin: 0 0 12px;
 }
 
+h1,
+h2 {
+  font-family: var(--fuente-titulos);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
 h1 {
-  font-size: 1.5rem;
+  font-size: clamp(28px, 4vw, 36px);
+  line-height: 1.15;
+  letter-spacing: -0.015em;
+  text-wrap: balance;
 }
 
 h2 {
-  font-size: 1.15rem;
+  font-size: 1.3rem;
+}
+
+h3 {
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+/* Cifras tabulares: códigos, fechas y montos alineados */
+code,
+time,
+.monto,
+.codigo,
+.tabla td {
+  font-variant-numeric: tabular-nums;
 }
 
 .pagina {
@@ -117,8 +159,18 @@ h2 {
   gap: 12px;
 }
 
+.encabezado h1 {
+  margin-bottom: 10px;
+}
+
+/* Aire entre el encabezado de la página y su contenido, como en el diseño */
+.pagina > .encabezado:first-child {
+  margin-bottom: 16px;
+}
+
 .encabezado p {
-  margin: 4px 0 0;
+  margin: 0;
+  max-width: 62ch;
   color: var(--color-texto-suave);
 }
 
@@ -127,7 +179,55 @@ h2 {
   border: 1px solid var(--color-borde);
   border-radius: var(--radio);
   box-shadow: var(--sombra);
-  padding: 20px;
+  padding: 24px;
+}
+
+/* Tarjeta con franja de estado a la izquierda (se ve de un vistazo). Por defecto teal; --urgente en rojo. */
+.tarjeta--franja {
+  position: relative;
+  overflow: hidden;
+  padding-left: 30px;
+}
+
+.tarjeta--franja::before {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 5px;
+  background: var(--color-primario);
+}
+
+.tarjeta--franja.tarjeta--urgente::before {
+  background: var(--color-urgente);
+}
+
+.tarjeta--franja.tarjeta--neutra::before {
+  background: var(--color-borde);
+}
+
+/* Píldora para códigos (EST-…, LOTE-…, FAM-…) */
+.codigo {
+  display: inline-block;
+  padding: 1px 7px;
+  border: 1px solid var(--color-borde);
+  border-radius: 6px;
+  background: var(--color-fondo);
+  color: var(--color-texto);
+  font-size: 0.87rem;
+}
+
+/* Etiqueta de urgencia (el rojo queda reservado a esto y a los errores) */
+.etiqueta-urgente {
+  display: inline-block;
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: var(--color-urgente-suave);
+  color: var(--color-urgente);
+  font-family: var(--fuente);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0;
+  vertical-align: middle;
 }
 
 .grilla-2 {
@@ -159,13 +259,15 @@ h2 {
   background: var(--color-superficie);
   color: var(--color-texto);
   font: inherit;
-  font-weight: 600;
+  font-size: 14px;
+  font-weight: 500;
   text-decoration: none;
   cursor: pointer;
 }
 
-.boton:hover {
+.boton:hover:not(:disabled) {
   border-color: var(--color-primario);
+  color: var(--color-primario);
 }
 
 .boton:disabled {
@@ -176,16 +278,24 @@ h2 {
 .boton--primario {
   background: var(--color-primario);
   border-color: var(--color-primario);
-  color: #fff;
+  color: var(--color-sobre-primario);
+  font-weight: 600;
 }
 
 .boton--primario:hover:not(:disabled) {
   background: var(--color-primario-hover);
+  border-color: var(--color-primario-hover);
+  color: var(--color-sobre-primario);
 }
 
 .boton--peligro {
-  color: var(--tono-error-texto);
-  border-color: var(--tono-error-fondo);
+  color: var(--color-urgente);
+  border-color: color-mix(in srgb, var(--color-urgente) 35%, var(--color-borde));
+}
+
+.boton--peligro:hover:not(:disabled) {
+  color: var(--color-urgente);
+  border-color: var(--color-urgente);
 }
 
 .boton--chico {
@@ -204,8 +314,9 @@ h2 {
   gap: 4px;
 }
 
-.campo > span {
-  font-weight: 600;
+.campo > span,
+.campo > legend {
+  font-weight: 500;
   font-size: 0.9rem;
 }
 
@@ -237,13 +348,15 @@ textarea {
   resize: vertical;
 }
 
-input:focus-visible,
-select:focus-visible,
-textarea:focus-visible,
-.boton:focus-visible,
-a:focus-visible {
+:focus-visible {
   outline: 2px solid var(--color-primario);
   outline-offset: 2px;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  border-color: var(--color-primario);
 }
 
 .tabla-contenedor {
@@ -265,9 +378,8 @@ a:focus-visible {
 }
 
 .tabla th {
-  font-size: 0.8rem;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
+  font-size: 12.5px;
+  font-weight: 600;
   color: var(--color-texto-suave);
 }
 
@@ -295,10 +407,10 @@ a:focus-visible {
 
 .dato {
   display: grid;
-  grid-template-columns: minmax(140px, 35%) 1fr;
-  gap: 8px;
-  padding: 6px 0;
-  border-bottom: 1px dashed var(--color-borde);
+  grid-template-columns: minmax(130px, 35%) 1fr;
+  gap: 12px;
+  padding: 10px 0;
+  border-top: 1px solid var(--color-borde);
 }
 
 .dato dt {
@@ -307,7 +419,7 @@ a:focus-visible {
 
 .dato dd {
   margin: 0;
-  font-weight: 600;
+  font-weight: 500;
 }
 
 .monto {
@@ -379,9 +491,8 @@ a:focus-visible {
 
   .tabla--apilable td::before {
     content: attr(data-etiqueta);
-    font-size: 0.78rem;
-    text-transform: uppercase;
-    letter-spacing: 0.03em;
+    font-size: 12.5px;
+    font-weight: 600;
     color: var(--color-texto-suave);
   }
 
@@ -399,6 +510,8 @@ a:focus-visible {
 
   .tabla--apilable td:first-child:not([data-etiqueta]) {
     font-weight: 600;
+    font-family: var(--fuente-titulos);
+    font-size: 1.05rem;
   }
 
   .tabla--apilable .celda-monto {
@@ -407,10 +520,6 @@ a:focus-visible {
 }
 
 @media (max-width: 640px) {
-  h1 {
-    font-size: 1.3rem;
-  }
-
   .tarjeta {
     padding: 14px;
   }

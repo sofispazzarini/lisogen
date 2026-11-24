@@ -53,7 +53,7 @@ const lista = computed(() => pasos(props.estado, props.tipo))
   place-items: center;
   border: 2px solid var(--color-borde);
   background: var(--color-superficie);
-  color: #fff;
+  color: var(--color-sobre-primario);
   font-weight: 700;
 }
 .paso--hecho .punto { background: var(--color-acento); border-color: var(--color-acento); }

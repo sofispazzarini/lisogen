@@ -6,6 +6,8 @@ declare module 'vue-router' {
   interface RouteMeta {
     rol?: Rol
     publica?: boolean
+    /** Título de una pantalla de detalle, para las migas de pan (grupo / sección / detalle) */
+    titulo?: string
   }
 }
 
@@ -32,34 +34,34 @@ export const routes: RouteRecordRaw[] = [
   {
     path: '/cuenta',
     component: LayoutRol,
-    children: [{ path: 'password', name: 'cuenta-password', component: v('auth/CambioPassword') }],
+    children: [{ path: 'password', name: 'cuenta-password', component: v('auth/CambioPassword'), meta: { titulo: 'Cambiar contraseña' } }],
   },
 
   seccion('/medico', 'MEDICO_TRATANTE', [
     { path: '', name: 'medico', component: v('medico/MisEstudios') },
     { path: 'pacientes', name: 'medico-pacientes', component: v('medico/Pacientes') },
     { path: 'pacientes/nuevo', name: 'medico-alta-paciente', component: v('medico/AltaPaciente') },
-    { path: 'pacientes/:id(\\d+)', name: 'medico-ficha', component: v('medico/FichaPaciente'), props: true },
-    { path: 'familias/:codigo(FAM-\\d{6})', name: 'medico-familia', component: v('medico/HistorialFamilia'), props: true },
+    { path: 'pacientes/:id(\\d+)', name: 'medico-ficha', component: v('medico/FichaPaciente'), props: true, meta: { titulo: 'Ficha del Paciente' } },
+    { path: 'familias/:codigo(FAM-\\d{6})', name: 'medico-familia', component: v('medico/HistorialFamilia'), props: true, meta: { titulo: 'Historial de la familia' } },
     { path: 'estudios/nuevo', name: 'medico-alta-estudio', component: v('medico/AltaEstudio') },
-    { path: 'estudios/:id(\\d+)', name: 'medico-estudio', component: v('medico/DetalleEstudio'), props: true },
+    { path: 'estudios/:id(\\d+)', name: 'medico-estudio', component: v('medico/DetalleEstudio'), props: true, meta: { titulo: 'Estudio' } },
     { path: 'cupones', name: 'medico-cupones', component: v('medico/MisCupones') },
   ]),
 
   seccion('/paciente', 'PACIENTE', [
     { path: '', name: 'paciente', component: v('paciente/MisEstudios') },
-    { path: 'estudios/:id(\\d+)', name: 'paciente-estudio', component: v('paciente/DetalleEstudio'), props: true },
-    { path: 'estudios/:id(\\d+)/pagar', name: 'paciente-pagar', component: v('paciente/Pagar'), props: true },
-    { path: 'estudios/:id(\\d+)/reautorizacion', name: 'paciente-reautorizacion', component: v('paciente/Reautorizacion'), props: true },
-    { path: 'estudios/:id(\\d+)/turno', name: 'paciente-turno', component: v('paciente/SacarTurno'), props: true },
-    { path: 'estudios/:id(\\d+)/mi-turno', name: 'paciente-mi-turno', component: v('paciente/MiTurno'), props: true },
-    { path: 'estudios/:id(\\d+)/resultado', name: 'paciente-resultado', component: v('paciente/Resultado'), props: true },
+    { path: 'estudios/:id(\\d+)', name: 'paciente-estudio', component: v('paciente/DetalleEstudio'), props: true, meta: { titulo: 'Estudio' } },
+    { path: 'estudios/:id(\\d+)/pagar', name: 'paciente-pagar', component: v('paciente/Pagar'), props: true, meta: { titulo: 'Pagar' } },
+    { path: 'estudios/:id(\\d+)/reautorizacion', name: 'paciente-reautorizacion', component: v('paciente/Reautorizacion'), props: true, meta: { titulo: 'Reautorización' } },
+    { path: 'estudios/:id(\\d+)/turno', name: 'paciente-turno', component: v('paciente/SacarTurno'), props: true, meta: { titulo: 'Sacar turno' } },
+    { path: 'estudios/:id(\\d+)/mi-turno', name: 'paciente-mi-turno', component: v('paciente/MiTurno'), props: true, meta: { titulo: 'Mi turno' } },
+    { path: 'estudios/:id(\\d+)/resultado', name: 'paciente-resultado', component: v('paciente/Resultado'), props: true, meta: { titulo: 'Resultado' } },
     { path: 'chatbot', name: 'paciente-chatbot', component: v('paciente/Chatbot') },
   ]),
 
   seccion('/administrativo', 'ADMINISTRATIVO', [
     { path: '', name: 'administrativo', component: v('administrativo/Tablero') },
-    { path: 'estudios/:id(\\d+)', name: 'admin-estudio', component: v('administrativo/DetalleEstudio'), props: true },
+    { path: 'estudios/:id(\\d+)', name: 'admin-estudio', component: v('administrativo/DetalleEstudio'), props: true, meta: { titulo: 'Estudio' } },
     { path: 'presupuestos', name: 'admin-presupuestos', component: v('administrativo/EmitirPresupuesto') },
     { path: 'autorizaciones', name: 'admin-autorizaciones', component: v('administrativo/Autorizaciones') },
     { path: 'muestras', name: 'admin-muestras', component: v('administrativo/SeguirMuestra') },
@@ -71,14 +73,14 @@ export const routes: RouteRecordRaw[] = [
 
   seccion('/transportista', 'TRANSPORTISTA', [
     { path: '', name: 'transportista', component: v('transportista/OrdenDelDia') },
-    { path: 'paradas/:id(\\d+)', name: 'transportista-recolectar', component: v('transportista/Recolectar'), props: true },
+    { path: 'paradas/:id(\\d+)', name: 'transportista-recolectar', component: v('transportista/Recolectar'), props: true, meta: { titulo: 'Recolectar' } },
     { path: 'llegada', name: 'transportista-llegada', component: v('transportista/ConfirmarLlegada') },
   ]),
 
   seccion('/bioinformatico', 'BIOINFORMATICO', [
     { path: '', name: 'bioinformatico', component: v('bioinformatico/Pendientes') },
     { path: 'mis-estudios', name: 'bio-mis-estudios', component: v('bioinformatico/MisEstudios') },
-    { path: 'estudios/:id(\\d+)', name: 'bio-variantes', component: v('bioinformatico/CargarVariantes'), props: true },
+    { path: 'estudios/:id(\\d+)', name: 'bio-variantes', component: v('bioinformatico/CargarVariantes'), props: true, meta: { titulo: 'Cargar variantes' } },
   ]),
 
   seccion('/gerente', 'GERENTE_MEDICO', [

@@ -125,5 +125,5 @@ async function reservar(): Promise<void> {
 .slot { min-height: 36px; border: 1px solid var(--color-borde); border-radius: var(--radio-chico); background: var(--color-superficie); color: var(--color-texto); font: inherit; cursor: pointer; }
 .slot:hover:not(:disabled) { border-color: var(--color-primario); }
 .slot:disabled { text-decoration: line-through; opacity: 0.45; cursor: not-allowed; }
-.slot.elegido { background: var(--color-primario); border-color: var(--color-primario); color: #fff; font-weight: 700; }
+.slot.elegido { background: var(--color-primario); border-color: var(--color-primario); color: var(--color-sobre-primario); font-weight: 700; }
 </style>
