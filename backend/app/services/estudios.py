@@ -1,6 +1,7 @@
 """E4 Dar de alta Estudio, E6 Solicitar Reanálisis, E21 Cargar datos crudos de Corea."""
 
 from sqlalchemy import select
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.domain.enums import (
@@ -64,26 +65,36 @@ async def obtener_estudio(
 # --- Genes ------------------------------------------------------------------------------------
 
 
-async def gen_por_simbolo(session: AsyncSession, simbolo: str) -> Gen:
-    gen = await session.scalar(select(Gen).where(Gen.simbolo == simbolo))
-    if gen is None:
-        gen = Gen(simbolo=simbolo)
-        session.add(gen)
-        await session.flush()
-    return gen
+async def _guardar_genes(session: AsyncSession, simbolos: set[str]) -> dict[str, Gen]:
+    if not simbolos:
+        return {}
+    await session.execute(
+        insert(Gen)
+        .values([{"simbolo": simbolo} for simbolo in sorted(simbolos)])
+        .on_conflict_do_nothing(index_elements=[Gen.simbolo])
+    )
+    genes = await session.scalars(select(Gen).where(Gen.simbolo.in_(simbolos)))
+    return {gen.simbolo: gen for gen in genes}
+
+
+async def _guardar_genes_de_patologias(session: AsyncSession, pares: set[tuple[int, int]]) -> None:
+    if pares:
+        await session.execute(
+            insert(PatologiaGen)
+            .values(
+                [{"patologia_id": patologia_id, "gen_id": gen_id} for patologia_id, gen_id in sorted(pares)]
+            )
+            .on_conflict_do_nothing(index_elements=[PatologiaGen.patologia_id, PatologiaGen.gen_id])
+        )
 
 
 async def genes_de_patologia(session: AsyncSession, ints: Integraciones, patologia: Patologia) -> list[Gen]:
     """E4 ep. 2: consulta la API de bioinformática y cachea el resultado en patologia_gen."""
     simbolos = await ints.bioinformatica.genes_por_patologia(patologia=patologia.nombre)
-    genes = [await gen_por_simbolo(session, s.upper()) for s in simbolos]
-    cacheados = set(
-        await session.scalars(select(PatologiaGen.gen_id).where(PatologiaGen.patologia_id == patologia.id))
-    )
-    session.add_all(
-        PatologiaGen(patologia_id=patologia.id, gen_id=g.id) for g in genes if g.id not in cacheados
-    )
-    return genes
+    ordenados = list(dict.fromkeys(s.upper() for s in simbolos))
+    genes = await _guardar_genes(session, set(ordenados))
+    await _guardar_genes_de_patologias(session, {(patologia.id, gen.id) for gen in genes.values()})
+    return [genes[s] for s in ordenados]
 
 
 async def _armar_genes(
@@ -97,27 +108,41 @@ async def _armar_genes(
 ) -> int:
     """Registra los genes del Estudio y devuelve cuántos cuentan para el Presupuesto."""
     excluir = excluir or set()
+    por_patologia = {
+        p.id: await ints.bioinformatica.genes_por_patologia(patologia=p.nombre) for p in patologias
+    }
+    secundarios = await ints.bioinformatica.genes_hallazgos_secundarios() if hallazgos else []
+    simbolos = {s.upper() for lista in por_patologia.values() for s in lista}
+    simbolos.update(s.upper() for s in secundarios)
+    simbolos.update(manuales)
+    genes = await _guardar_genes(session, simbolos)
+    await _guardar_genes_de_patologias(
+        session, {(p, genes[s.upper()].id) for p, lista in por_patologia.items() for s in lista}
+    )
     vistos: dict[int, EstudioGen] = {}
-    for p in patologias:
-        for g in await genes_de_patologia(session, ints, p):
+    for patologia_id, lista in por_patologia.items():
+        for simbolo in lista:
+            g = genes[simbolo.upper()]
             if g.id not in vistos and g.id not in excluir:
                 vistos[g.id] = EstudioGen(
-                    estudio_id=estudio.id, gen_id=g.id, origen=OrigenGen.API_PATOLOGIA, patologia_id=p.id
+                    estudio_id=estudio.id,
+                    gen_id=g.id,
+                    origen=OrigenGen.API_PATOLOGIA,
+                    patologia_id=patologia_id,
                 )
     for simbolo in dict.fromkeys(manuales):
-        g = await gen_por_simbolo(session, simbolo)
+        g = genes[simbolo]
         if g.id not in vistos and g.id not in excluir:
             vistos[g.id] = EstudioGen(estudio_id=estudio.id, gen_id=g.id, origen=OrigenGen.MANUAL)
     a_presupuestar = len(vistos)
     if a_presupuestar == 0:
         raise ErrorNegocio("ESTUDIO_SIN_GENES", "El Estudio tiene que analizar al menos un gen.")
-    if hallazgos:
-        for simbolo in await ints.bioinformatica.genes_hallazgos_secundarios():
-            g = await gen_por_simbolo(session, simbolo.upper())
-            if g.id not in vistos:
-                vistos[g.id] = EstudioGen(
-                    estudio_id=estudio.id, gen_id=g.id, origen=OrigenGen.HALLAZGO_SECUNDARIO
-                )
+    for simbolo in secundarios:
+        g = genes[simbolo.upper()]
+        if g.id not in vistos:
+            vistos[g.id] = EstudioGen(
+                estudio_id=estudio.id, gen_id=g.id, origen=OrigenGen.HALLAZGO_SECUNDARIO
+            )
     session.add_all(vistos.values())
     return a_presupuestar
 
@@ -233,6 +258,8 @@ async def solicitar_reanalisis(
             ya_analizados,
         )
     except ErrorNegocio as e:
+        if e.code != "ESTUDIO_SIN_GENES":
+            raise
         raise ErrorNegocio(
             "SIN_GENES_NUEVOS", "Todos los genes indicados ya se analizaron en este exoma."
         ) from e

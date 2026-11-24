@@ -18,7 +18,9 @@ from app.domain.enums import (
     ServicioExterno,
     TipoEstudio,
 )
+from app.integrations.apigen_api import ApigenNoDisponible
 from app.integrations.infra import MailMemoria
+from app.integrations.mock import BioinformaticaMock
 from app.integrations.ports import ConceptoSnomed, ErrorSnomed
 from app.integrations.registro import Adaptadores
 from app.models import (
@@ -427,6 +429,36 @@ async def test_alta_estudio_varias_patologias_suma_genes(
         headers=headers(demo[RolUsuario.MEDICO_TRATANTE]),
     )
     assert set(await _genes(session, r.json()["id"])) == {"GLA", "GBA1"}
+
+
+async def test_alta_estudio_revierte_si_fallan_los_hallazgos(
+    cliente: httpx.AsyncClient,
+    session: AsyncSession,
+    demo: dict[RolUsuario, Usuario],
+    adaptadores: Adaptadores,
+) -> None:
+    class CatalogoCaido(BioinformaticaMock):
+        async def genes_por_patologia(self, *, patologia: str) -> list[str]:
+            return ["GENNUEVO"]
+
+        async def genes_hallazgos_secundarios(self) -> list[str]:
+            raise ApigenNoDisponible()
+
+    adaptadores.bioinformatica = CatalogoCaido()
+    paciente = await session.scalar(select(Paciente))
+    assert paciente is not None
+    r = await cliente.post(
+        "/medico/estudios",
+        json={
+            "paciente_id": paciente.id,
+            "patologia_ids": [await _patologia(session, "Fabry")],
+            "evalua_hallazgos_secundarios": True,
+        },
+        headers=headers(demo[RolUsuario.MEDICO_TRATANTE]),
+    )
+    assert r.status_code == 502 and r.json()["code"] == "APIGEN_NO_DISPONIBLE"
+    assert await session.scalar(select(Estudio.id)) is None
+    assert await session.scalar(select(Gen.id).where(Gen.simbolo == "GENNUEVO")) is None
 
 
 @pytest.mark.parametrize(("dias", "urgente"), [(60, True), (130, False)])

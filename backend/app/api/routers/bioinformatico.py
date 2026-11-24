@@ -2,7 +2,7 @@
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 
 from app.api.deps import Ints, Sesion, requiere_rol
 from app.domain.enums import RolUsuario
@@ -52,15 +52,28 @@ async def estudio(estudio_id: int, bio: Bio, session: Sesion, ints: Ints) -> Est
     "/estudios/{estudio_id}/genes/{simbolo}/variantes",
     response_model=list[VarianteCatalogo],
     summary="Variantes del gen según la API de bioinformática (E28)",
+    responses={502: {"model": Error}},
 )
 async def variantes(
-    estudio_id: int, simbolo: str, bio: Bio, session: Sesion, ints: Ints
+    estudio_id: int,
+    simbolo: str,
+    bio: Bio,
+    session: Sesion,
+    ints: Ints,
+    q: Annotated[str, Query(max_length=120)] = "",
+    limite: Annotated[int, Query(ge=1, le=100)] = 50,
+    offset: Annotated[int, Query(ge=0, le=1_000_000)] = 0,
 ) -> list[VarianteCatalogo]:
-    return await analisis.variantes_de_gen(session, ints, bio, estudio_id, simbolo)
+    return await analisis.variantes_de_gen(
+        session, ints, bio, estudio_id, simbolo, texto=q.strip(), limite=limite, offset=offset
+    )
 
 
 @router.post(
-    "/estudios/{estudio_id}/resultado", response_model=ResultadoSalida, summary="Confirmar Resultado (E28)"
+    "/estudios/{estudio_id}/resultado",
+    response_model=ResultadoSalida,
+    summary="Confirmar Resultado (E28)",
+    responses={502: {"model": Error}},
 )
 async def confirmar(
     estudio_id: int, datos: ResultadoEntrada, bio: Bio, session: Sesion, ints: Ints

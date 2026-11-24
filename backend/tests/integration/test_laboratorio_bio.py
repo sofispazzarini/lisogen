@@ -17,6 +17,10 @@ from app.domain.enums import (
     OrigenGen,
     RolUsuario,
 )
+from app.integrations.apigen_api import ApigenNoDisponible
+from app.integrations.mock import BioinformaticaMock
+from app.integrations.ports import VarianteExterna
+from app.integrations.registro import Adaptadores
 from app.models import (
     AuditoriaAcceso,
     CentroExtraccion,
@@ -27,8 +31,10 @@ from app.models import (
     Muestra,
     Notificacion,
     Paciente,
+    Resultado,
     SolicitudReextraccion,
     Usuario,
+    Variante,
 )
 from tests import factories, flujos
 from tests.factories import headers
@@ -222,6 +228,12 @@ async def test_variantes_del_gen_desde_la_api(
         await cliente.get(f"/bioinformatico/estudios/{estudio.id}/genes/gla/variantes", headers=headers(bio))
     )
     assert GLA_PATOGENICA in [v["nomenclatura"] for v in variantes] and len(variantes) == 3
+    url = f"/bioinformatico/estudios/{estudio.id}/genes/gla/variantes"
+    filtradas = await ok(await cliente.get(url, params={"q": "asn215ser", "limite": 1}, headers=headers(bio)))
+    assert [v["nomenclatura"] for v in filtradas] == [GLA_PATOGENICA]
+    segunda = await ok(await cliente.get(url, params={"limite": 1, "offset": 1}, headers=headers(bio)))
+    assert segunda == variantes[1:2]
+    assert await session.scalar(select(Variante.id).where(Variante.nomenclatura == GLA_PATOGENICA)) is None
     r = await cliente.get(f"/bioinformatico/estudios/{estudio.id}/genes/GAA/variantes", headers=headers(bio))
     assert r.status_code == 422 and r.json()["code"] == "GEN_NO_SOLICITADO"
 
@@ -267,6 +279,7 @@ async def test_confirmar_resultado(
         )
     )
     assert res["tipo"] == tipo and res["pdf_url"].startswith("memoria://resultado_pdf/")
+    assert len((await session.scalars(select(Variante))).all()) == len(variantes)
     assert await flujos.estado(cliente, demo[RolUsuario.ADMINISTRATIVO], estudio.id) == "FINALIZADO"
     avisados = set(
         await session.scalars(
@@ -349,3 +362,29 @@ async def test_resultado_validaciones(
     otro_bio = await factories.usuario(session, RolUsuario.BIOINFORMATICO)
     r = await cliente.post(url, json={"variantes": []}, headers=headers(otro_bio))
     assert r.status_code == 403
+
+
+async def test_confirmar_resultado_revierte_si_falla_el_catalogo(
+    cliente: httpx.AsyncClient,
+    session: AsyncSession,
+    demo: dict[RolUsuario, Usuario],
+    adaptadores: Adaptadores,
+) -> None:
+    class CatalogoCaido(BioinformaticaMock):
+        async def variante_exacta(self, *, gen: str, nomenclatura: str) -> VarianteExterna | None:
+            if nomenclatura != GLA_PATOGENICA:
+                raise ApigenNoDisponible()
+            return await super().variante_exacta(gen=gen, nomenclatura=nomenclatura)
+
+    adaptadores.bioinformatica = CatalogoCaido()
+    bio = demo[RolUsuario.BIOINFORMATICO]
+    estudio = await _tomado(cliente, session, demo)
+    url = f"/bioinformatico/estudios/{estudio.id}/resultado"
+    primera = {"gen": "GLA", "nomenclatura": GLA_PATOGENICA, "clasificacion": "BENIGNA"}
+    segunda = {**primera, "nomenclatura": "c.1A>T"}
+    r = await cliente.post(url, json={"variantes": [primera, segunda]}, headers=headers(bio))
+    assert r.status_code == 502 and r.json()["code"] == "APIGEN_NO_DISPONIBLE"
+    assert await session.scalar(select(Resultado.id).where(Resultado.estudio_id == estudio.id)) is None
+    assert await session.scalar(select(Variante.id)) is None
+    reintento = await ok(await cliente.post(url, json={"variantes": [primera]}, headers=headers(bio)))
+    assert reintento["tipo"] == "NEGATIVO"
