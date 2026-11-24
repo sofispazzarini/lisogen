@@ -4,12 +4,13 @@ from datetime import date, datetime
 from decimal import Decimal
 from typing import Annotated, Literal
 
-from pydantic import EmailStr, Field, StringConstraints, model_validator
+from pydantic import BeforeValidator, EmailStr, Field, StringConstraints, model_validator
 
 from app.domain.enums import (
     ClasifVariante,
     ConceptoMov,
     EstadoCupon,
+    EstadoEstudio,
     EstadoLote,
     EstadoMuestra,
     EstadoParada,
@@ -17,6 +18,8 @@ from app.domain.enums import (
     LadoFamiliar,
     ModalidadPago,
     Parentesco,
+    TipoEstudio,
+    TipoResultado,
     TipoSospecha,
 )
 from app.schemas.comun import CentroSalida, Concepto, Esquema, EstudioResumen, GenEstudio
@@ -25,6 +28,12 @@ SimboloGen = Annotated[
     str, StringConstraints(strip_whitespace=True, to_upper=True, pattern=r"^[A-Za-z0-9-]{2,15}$")
 ]
 TextoCorto = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=120)]
+# Se normaliza antes de validar: el Médico puede tipear "fam-000123 "
+CodigoFamilia = Annotated[
+    str,
+    BeforeValidator(lambda v: v.strip().upper() if isinstance(v, str) else v),
+    StringConstraints(pattern=r"^FAM-\d{6}$"),
+]
 
 # --- Médico Tratante (E2–E6) ------------------------------------------------------------------
 
@@ -71,6 +80,10 @@ class PacienteAlta(Esquema):
     sintomas: list[int] = Field(min_length=1, description="concept_id SNOMED CT")
     diagnosticos: list[DiagnosticoEntrada] = Field(min_length=1)
     familiares: list[FamiliarEntrada] = Field(default_factory=list)
+    familia_codigo: CodigoFamilia | None = Field(
+        default=None,
+        description="Número de familia de otro Paciente (FAM-000123) para vincularlo. Vacío: familia nueva.",
+    )
 
 
 class FamiliogramaEntrada(Esquema):
@@ -114,6 +127,7 @@ class AdvertenciaSalida(Esquema):
 
 class PacienteFicha(Esquema):
     id: int
+    familia_codigo: str
     dni: str
     nombre: str
     apellido: str
@@ -133,6 +147,36 @@ class PacienteFicha(Esquema):
     )
     familiograma_advertencias: list[AdvertenciaSalida]
     estudios: list[EstudioResumen]
+
+
+class VincularFamiliaEntrada(Esquema):
+    familia_codigo: CodigoFamilia
+
+
+class EstudioFamilia(Esquema):
+    codigo: str
+    tipo: TipoEstudio
+    estado: EstadoEstudio
+    estado_etiqueta: str
+    patologias: list[str]
+    resultado: TipoResultado | None
+    created_at: datetime
+
+
+class MiembroFamilia(Esquema):
+    """Un Paciente de la familia. Sin datos de contacto ni DNI. `paciente_id` sólo viene si el Médico
+    puede abrir su ficha (lo dio de alta o tiene Estudios suyos)."""
+
+    paciente_id: int | None
+    nombre_completo: str
+    fecha_nacimiento: date
+    estudios: list[EstudioFamilia]
+    familiares_declarados: list[FamiliarSalida]
+
+
+class HistorialFamilia(Esquema):
+    familia_codigo: str
+    miembros: list[MiembroFamilia]
 
 
 class EstudioAlta(Esquema):
@@ -254,6 +298,7 @@ class MuestraSalida(Esquema):
     paciente: str
     nro_extraccion: int
     volumen_ml: Decimal
+    volumen_bajo: bool = Field(description="Menos de 2 ml: sigue su curso, pero puede llegar mal a Corea")
     estado: EstadoMuestra
     centro: str
     tomada_at: datetime
@@ -290,7 +335,7 @@ class RetiroEntrada(Esquema):
 
 
 class ReextraccionEntrada(Esquema):
-    motivo: Literal["DESNATURALIZADA"] = "DESNATURALIZADA"
+    motivo: Literal["DESNATURALIZADA", "MALA_CALIDAD"] = "DESNATURALIZADA"
     detalle: str | None = Field(default=None, max_length=500)
 
 
@@ -348,7 +393,9 @@ class PosicionEntrada(Esquema):
 
 class LlegadaSalida(Esquema):
     recibidas: int
-    volumen_insuficiente: list[str]
+    volumen_bajo: list[str] = Field(
+        description="Estudios cuya Muestra llegó con menos de 2 ml: entran al Lote igual (aviso)"
+    )
     lotes_sellados: list[str]
     lote_en_formacion: str | None
 

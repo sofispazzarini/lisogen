@@ -1,7 +1,7 @@
 from datetime import date, datetime
 from typing import Any
 
-from sqlalchemy import ForeignKey, Integer, func
+from sqlalchemy import FetchedValue, ForeignKey, Integer, func
 from sqlalchemy.dialects.postgresql import CITEXT, JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -24,10 +24,15 @@ class Paciente(Base):
     nro_afiliado: Mapped[str | None]
     resumen_historia_clinica: Mapped[str]
     familiograma_archivo_id: Mapped[int | None] = mapped_column(ForeignKey("archivo.id"))
+    # Número de familia (FAM-000123): agrupa Pacientes para el historial familiar (migración 0006)
+    familia_codigo: Mapped[str] = mapped_column(server_default=FetchedValue())  # DEFAULT con familia_seq
     # Avisos del último Familiograma generado: [{codigo, mensaje}] (migración 0004)
     familiograma_advertencias: Mapped[list[dict[str, Any]]] = mapped_column(JSONB, default=list)
     medico_alta_id: Mapped[int] = mapped_column(ForeignKey("profesional_medico.usuario_id"))
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+
+    # Trae familia_codigo (lo genera la base) en el mismo INSERT ... RETURNING
+    __mapper_args__ = {"eager_defaults": True}  # noqa: RUF012
 
     @property
     def nombre_completo(self) -> str:

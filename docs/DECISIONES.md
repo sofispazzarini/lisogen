@@ -19,6 +19,11 @@ Regla de precedencia: **Escenarios + `schema.sql`** > Glosario LEL > prototipo. 
 - **Problema:** la API de FedEx no tiene webhook: el estado del retiro se consulta por id, y `schema.sql` no tiene dónde guardarlo.
 - **Cambio:** `ALTER TABLE lote ADD COLUMN fedex_retiro_id text`. `lote.fedex_url` pasa a guardar la URL de seguimiento que devuelve FedEx.
 
+### D4 · Migración `0006_familia_y_mala_calidad`
+- **Problema:** nuevos requerimientos. (1) El Médico tiene que ver el historial de la familia, y no había nada que vinculara Pacientes entre sí. (2) Las Muestras de menos de 2 ml ya no vuelven solas; si llegan mal a Corea, el Administrativo vuelve el Estudio atrás.
+- **Cambio:** `paciente.familia_codigo text NOT NULL` (`FAM-000001`…, con `CHECK`, índice y `DEFAULT` de la secuencia `familia_seq`); cada Paciente existente recibe un número propio. Se agrega `MALA_CALIDAD` a `estado_muestra` y a `motivo_reextraccion`. `VOLUMEN_INSUFICIENTE` queda en los enums para los registros anteriores.
+- Postgres no permite quitar valores de un enum: el `downgrade` recrea los tipos y pasa `MALA_CALIDAD` a `DESNATURALIZADA`.
+
 ## 2. Contradicciones entre fuentes
 
 | # | LEL / prototipo | Escenarios / schema | Se adopta |
@@ -95,6 +100,9 @@ S39 · El Médico sólo elige síntomas SNOMED. Los Escenarios piden “síntoma
   - **Confirmación por consulta.** La API no tiene webhook: la tarea `fedex` consulta los retiros cuya hora ya pasó y registra los `RETIRADO`. El webhook propio queda sólo para el modo mock.
   - **Sin reprogramar.** La API no permite cancelar ni modificar un retiro, así que un segundo intento responde 409 `RETIRO_YA_PROGRAMADO`.
   - **Formato de fecha.** La documentación de la API pide `-03:00`, pero la API lo rechaza con 400 y exige `YYYY-MM-DDTHH:mm:ss` en hora argentina. Se sigue lo que acepta la API (verificado el 2026-11-03).
+
+- **S41 · Historial de la familia (requerimiento nuevo).** Cada Paciente tiene un número de familia (`FAM-000123`) que se asigna solo en el alta. El Médico puede escribir el número de otro Paciente al dar de alta o desde la ficha para unirlos: el número lo aporta el Paciente o su familia, como prueba del vínculo, y cada vinculación queda en la auditoría (`VINCULAR_FAMILIA`). El historial (`GET /medico/familias/{codigo}`) muestra los Pacientes de la familia con sus Estudios (patologías, estado y resultado: positivo, negativo o no concluyente) y los familiares que declararon. No incluye DNI, teléfono, mail ni el informe del Resultado. Sólo lo ve el Médico tratante de algún miembro (lo dio de alta o tiene un Estudio suyo); de los demás miembros no puede abrir la ficha. Cada consulta queda en la auditoría (`VER_HISTORIAL_FAMILIA`, Ley 25.326).
+- **S42 · Muestras de menos de 2 ml (requerimiento nuevo, reemplaza la re-extracción automática de E25).** Una Muestra de menos de 2 ml no es motivo para volver el Estudio atrás: al confirmar la llegada (E25) entra al Lote como las demás, y queda un aviso de "volumen bajo" para el Administrativo en el detalle del Estudio y en Seguir Muestra. Si llega con mala calidad a Corea, el Administrativo vuelve el Estudio atrás desde el detalle del Estudio o desde Solicitar nueva extracción (E22), con el motivo `MALA_CALIDAD` (o `DESNATURALIZADA`). Como en S10, es el mismo Estudio, sin costo, y se avisa al Paciente y al Médico Tratante.
 
 ## 5. Frontend
 

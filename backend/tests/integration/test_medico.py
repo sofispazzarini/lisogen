@@ -1,6 +1,7 @@
 """`/medico`: E2 Dar de alta Paciente, E3 Familiograma, E4 Dar de alta Estudio, E5 Asignar Cupón a
 Paciente, E6 Solicitar Reanálisis. Más catálogos, propiedad de los datos y auditoría."""
 
+import re
 from datetime import date, timedelta
 from typing import Any
 
@@ -17,6 +18,7 @@ from app.domain.enums import (
     RolUsuario,
     ServicioExterno,
     TipoEstudio,
+    TipoResultado,
 )
 from app.integrations.apigen_api import ApigenNoDisponible
 from app.integrations.infra import MailMemoria
@@ -28,12 +30,14 @@ from app.models import (
     Cupon,
     Estudio,
     EstudioGen,
+    Familiar,
     Gen,
     IntegracionLog,
     Notificacion,
     ObraSocial,
     Paciente,
     Patologia,
+    Resultado,
     SnomedConcepto,
     Usuario,
 )
@@ -546,6 +550,90 @@ async def test_alta_sin_familiares_deja_seccion_vacia(
     r = await cliente.post("/medico/pacientes", json=await _alta_paciente(session), headers=headers(medico))
     ficha = (await cliente.get(f"/medico/pacientes/{r.json()['id']}", headers=headers(medico))).json()
     assert ficha["familiares"] == [] and ficha["familiograma_url"] is None
+
+
+# --- Historial de la familia -----------------------------------------------------------------
+
+
+async def test_alta_asigna_familia_y_se_puede_vincular(
+    cliente: httpx.AsyncClient, session: AsyncSession, demo: dict[RolUsuario, Usuario]
+) -> None:
+    h = headers(demo[RolUsuario.MEDICO_TRATANTE])
+    r = await cliente.post("/medico/pacientes", json=await _alta_paciente(session), headers=h)
+    madre = (await cliente.get(f"/medico/pacientes/{r.json()['id']}", headers=h)).json()
+    assert re.fullmatch(r"FAM-\d{6}", madre["familia_codigo"])
+
+    # Alta de la hija con el número de la madre: queda en la misma familia
+    hija = await _alta_paciente(
+        session,
+        dni="40999111",
+        email="hija.rivas@test.com.ar",
+        familia_codigo=madre["familia_codigo"].lower(),
+    )
+    r = await cliente.post("/medico/pacientes", json=hija, headers=h)
+    assert r.status_code == 201, r.text
+    ficha_hija = (await cliente.get(f"/medico/pacientes/{r.json()['id']}", headers=h)).json()
+    assert ficha_hija["familia_codigo"] == madre["familia_codigo"]
+
+    # Un primo dado de alta aparte se vincula después desde la ficha
+    primo = await _alta_paciente(session, dni="40999222", email="primo.rivas@test.com.ar")
+    pid = (await cliente.post("/medico/pacientes", json=primo, headers=h)).json()["id"]
+    r = await cliente.put(
+        f"/medico/pacientes/{pid}/familia", json={"familia_codigo": madre["familia_codigo"]}, headers=h
+    )
+    assert r.status_code == 200, r.text
+    auditorias = await session.scalar(
+        select(func.count()).where(AuditoriaAcceso.accion == "VINCULAR_FAMILIA")
+    )
+    assert auditorias == 2
+
+    for codigo, esperado in (("FAM-999999", "FAMILIA_INEXISTENTE"), ("familia-1", "DATOS_INVALIDOS")):
+        r = await cliente.put(f"/medico/pacientes/{pid}/familia", json={"familia_codigo": codigo}, headers=h)
+        assert r.status_code == 422 and r.json()["code"] == esperado
+
+
+async def test_historial_de_la_familia(
+    cliente: httpx.AsyncClient, session: AsyncSession, demo: dict[RolUsuario, Usuario]
+) -> None:
+    medico, bio = demo[RolUsuario.MEDICO_TRATANTE], demo[RolUsuario.BIOINFORMATICO]
+    otro_medico = await factories.usuario(session, RolUsuario.MEDICO_TRATANTE)
+    propio = await factories.paciente(session, medico)
+    ajeno = await factories.paciente(session, otro_medico, fecha_nacimiento=date(1960, 1, 1))
+    ajeno.familia_codigo = propio.familia_codigo
+    session.add(Familiar(paciente_id=ajeno.id, parentesco="MADRE", nombre="Elsa", apellido="Gómez"))
+    finalizado = await factories.estudio_en(
+        session, ajeno, otro_medico, EstadoEstudio.FINALIZADO, bioinformatico=bio
+    )
+    session.add(Resultado(estudio_id=finalizado.id, tipo=TipoResultado.POSITIVO, confirmado_por=bio.id))
+    await session.flush()
+
+    r = await cliente.get(f"/medico/familias/{propio.familia_codigo}", headers=headers(medico))
+    assert r.status_code == 200, r.text
+    historial = r.json()
+    assert historial["familia_codigo"] == propio.familia_codigo
+    mayor, menor = historial["miembros"]  # ordenados por fecha de nacimiento
+    assert mayor["paciente_id"] is None  # no está a cargo del Médico: no puede abrir su ficha
+    assert menor["paciente_id"] == propio.id
+    assert [(e["codigo"], e["estado"], e["resultado"]) for e in mayor["estudios"]] == [
+        (finalizado.codigo, "FINALIZADO", "POSITIVO")
+    ]
+    assert mayor["familiares_declarados"][0]["nombre"] == "Elsa"
+    for dato in ("dni", "telefono", "email_contacto"):  # sin datos de contacto
+        assert dato not in mayor
+    assert ajeno.dni not in r.text and ajeno.email_contacto not in r.text
+    auditoria = await session.scalar(
+        select(AuditoriaAcceso).where(AuditoriaAcceso.accion == "VER_HISTORIAL_FAMILIA")
+    )
+    assert auditoria is not None and auditoria.usuario_id == medico.id
+
+    # Un Médico sin Pacientes en esa familia no la ve
+    tercero = await factories.usuario(session, RolUsuario.MEDICO_TRATANTE)
+    r = await cliente.get(f"/medico/familias/{propio.familia_codigo}", headers=headers(tercero))
+    assert r.status_code == 403
+    r = await cliente.get("/medico/familias/FAM-999999", headers=headers(medico))
+    assert r.status_code == 404
+    r = await cliente.get("/medico/familias/cualquiera", headers=headers(medico))
+    assert r.status_code == 422
 
 
 async def test_medico_solo_ve_sus_pacientes(

@@ -14,7 +14,6 @@ from app.domain.enums import (
     EstadoEstudio,
     EstadoLote,
     EstadoMuestra,
-    MotivoReextraccion,
     RolUsuario,
     TipoArchivo,
 )
@@ -28,13 +27,12 @@ from app.models import (
     Muestra,
     OrdenDelDiaParada,
     Patologia,
-    SolicitudReextraccion,
     Usuario,
 )
 from app.schemas.roles import LlegadaSalida, LoteSalida
 from app.services.comun import ahora, feriados, guardar_archivo, notificar, siguiente_codigo, url_archivo
 from app.services.logistica import hoy, orden_de
-from app.services.transiciones import transicionar, volver_a_habilitante
+from app.services.transiciones import transicionar
 
 
 async def _lote_en_formacion(session: AsyncSession) -> Lote:
@@ -128,8 +126,9 @@ async def sellar(session: AsyncSession, ints: Integraciones, lote: Lote) -> None
 async def confirmar_llegada(
     session: AsyncSession, ints: Integraciones, usuario: Usuario, fecha: date | None = None
 ) -> LlegadaSalida:
-    """E25: las Muestras de < 2 ml no entran al Lote y piden nueva extracción; el resto entra al Lote
-    en formación, que se sella con 10 Muestras o con un Urgente (el excedente va al siguiente)."""
+    """E25: las Muestras entran al Lote en formación, que se sella con 10 Muestras o con un Urgente (el
+    excedente va al siguiente). Las de < 2 ml entran igual y se informan en `volumen_bajo` (SUPUESTO S42):
+    si llegan mal a Corea, el Administrativo pide la nueva extracción (E22)."""
     orden = await orden_de(session, usuario, fecha or hoy())
     if orden.llegada_lab_at is not None:
         raise Conflicto("LLEGADA_CONFIRMADA", "Ya confirmaste la llegada de hoy.")
@@ -148,7 +147,7 @@ async def confirmar_llegada(
         raise ErrorNegocio("SIN_MUESTRAS_EN_CAMINO", "No llevás Muestras recolectadas para entregar.")
     momento = ahora()
     orden.llegada_lab_at = momento
-    insuficientes: list[str] = []
+    volumen_bajo: list[str] = []
     para_lote: list[MuestraParaLote] = []
     estudios: dict[int, Estudio] = {}
     for m in muestras:
@@ -156,25 +155,8 @@ async def confirmar_llegada(
         estudio = await session.get(Estudio, m.estudio_id)
         assert estudio is not None
         estudios[m.id] = estudio
-        if not volumen_suficiente(m.volumen_ml):
-            m.estado = EstadoMuestra.VOLUMEN_INSUFICIENTE
-            session.add(
-                SolicitudReextraccion(
-                    estudio_id=estudio.id,
-                    muestra_id=m.id,
-                    motivo=MotivoReextraccion.VOLUMEN_INSUFICIENTE,
-                    solicitado_por=None,
-                )
-            )
-            await volver_a_habilitante(
-                session,
-                estudio,
-                None,
-                f"La Muestra llegó con {m.volumen_ml} ml (mínimo 2 ml). "
-                "Sacá un nuevo Turno: la extracción no tiene costo.",
-            )
-            insuficientes.append(estudio.codigo)
-            continue
+        if not volumen_suficiente(m.volumen_ml):  # entra igual: sólo queda el aviso (SUPUESTO S42)
+            volumen_bajo.append(estudio.codigo)
         m.estado = EstadoMuestra.EN_LAB_CENTRAL
         await transicionar(
             session,
@@ -204,7 +186,7 @@ async def confirmar_llegada(
                 abierto = lote
     return LlegadaSalida(
         recibidas=len(muestras),
-        volumen_insuficiente=insuficientes,
+        volumen_bajo=volumen_bajo,
         lotes_sellados=sellados,
         lote_en_formacion=abierto.codigo if abierto else None,
     )

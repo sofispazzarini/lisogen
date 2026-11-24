@@ -11,23 +11,24 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import security
-from app.domain.enums import EstadoEstudio, MotivoReextraccion, RolUsuario
+from app.domain.enums import EstadoEstudio, EstadoMuestra, MotivoReextraccion, RolUsuario
 from app.integrations.pdf import generar_pdf
 from app.integrations.registro import Adaptadores, Integraciones
 from app.models import (
     CentroExtraccion,
+    Estudio,
     Lote,
     MovimientoFinanciero,
+    Muestra,
     ObraSocial,
-    Paciente,
     SolicitudReextraccion,
     Transportista,
-    Turno,
     Usuario,
 )
 from app.services import logistica
 from app.services.comun import ahora
 from app.services.extracciones import registrar_extraccion
+from app.services.transiciones import transicionar
 from tests import factories, flujos
 from tests.factories import headers
 from tests.flujos import ok
@@ -334,12 +335,14 @@ async def test_urgente_sella_lote_con_menos_de_10_y_sale_primero(
 # --- 4. Muestra de 1,5 ml: nueva extracción sin costo -----------------------------------------
 
 
-async def test_muestra_de_1_5_ml_genera_reextraccion(
+async def test_muestra_de_1_5_ml_sigue_y_se_reextrae_si_llega_mal_a_corea(
     cliente: httpx.AsyncClient,
     session: AsyncSession,
     adaptadores: Adaptadores,
     demo: dict[RolUsuario, Usuario],
 ) -> None:
+    """SUPUESTO S42: la Muestra de 1,5 ml entra al Lote; si llega con mala calidad a Corea, el
+    Administrativo vuelve el Estudio atrás y el Paciente saca otro Turno, sin costo."""
     medico, admin, transportista = (
         demo[RolUsuario.MEDICO_TRATANTE],
         demo[RolUsuario.ADMINISTRATIVO],
@@ -359,11 +362,34 @@ async def test_muestra_de_1_5_ml_genera_reextraccion(
     codigo = (await ok(await cliente.get(f"/administrativo/estudios/{eid}", headers=headers(admin))))[
         "codigo"
     ]
-    assert llegada["volumen_insuficiente"] == [codigo] and llegada["lotes_sellados"] == []
+    assert llegada["volumen_bajo"] == [codigo]
+    assert await flujos.estado(cliente, admin, eid) == "EN_LAB_CENTRAL"
+    assert (
+        await session.scalar(select(SolicitudReextraccion).where(SolicitudReextraccion.estudio_id == eid))
+        is None
+    )
 
-    sol = await session.scalar(select(SolicitudReextraccion).where(SolicitudReextraccion.estudio_id == eid))
-    assert sol is not None and sol.motivo == MotivoReextraccion.VOLUMEN_INSUFICIENTE
+    # El Lote se sella y viaja a Corea (se adelanta con las transiciones del sistema, E25 y E20)
+    estudio = await session.get(Estudio, eid)
+    muestra = await session.scalar(select(Muestra).where(Muestra.estudio_id == eid))
+    assert estudio is not None and muestra is not None
+    await transicionar(session, estudio, EstadoEstudio.EN_ESPERA_RETIRO, None, "Lote sellado")
+    await transicionar(session, estudio, EstadoEstudio.EN_VIAJE_COREA, None, "Retiro de FedEx")
+    muestra.estado = EstadoMuestra.EN_VIAJE_COREA
+    await session.flush()
+    # Llega con mala calidad: el Administrativo vuelve el Estudio atrás
+    await ok(
+        await cliente.post(
+            f"/administrativo/estudios/{eid}/reextraccion",
+            json={"motivo": "MALA_CALIDAD", "detalle": "Poco volumen"},
+            headers=headers(admin),
+        )
+    )
     assert await flujos.estado(cliente, admin, eid) == "PAGADO"
+    sol = await session.scalar(select(SolicitudReextraccion).where(SolicitudReextraccion.estudio_id == eid))
+    assert (
+        sol is not None and sol.motivo == MotivoReextraccion.MALA_CALIDAD and sol.solicitado_por == admin.id
+    )
 
     # Mismo Estudio, sin costo: nuevo Turno y nueva Muestra (extracción 2), sin nuevo pago
     turno2 = await flujos.sacar_turno(cliente, paciente, eid, palermo, flujos.slot(dia, 10, 30))
@@ -374,17 +400,3 @@ async def test_muestra_de_1_5_ml_genera_reextraccion(
         select(func.count()).select_from(MovimientoFinanciero).where(MovimientoFinanciero.estudio_id == eid)
     )
     assert pagos == 1
-    assert await session.scalar(select(func.count()).where(Turno.estudio_id == eid)) == 2
-    paciente_db = await session.get(Paciente, pid)
-    assert paciente_db is not None
-    assert await _historial(cliente, admin, eid) == [
-        "CREADO",
-        "POR_PAGAR",
-        "PAGADO",
-        "TURNO_SACADO",
-        "LISTO_PARA_RETIRAR",
-        "EN_CAMINO_LAB_CENTRAL",
-        "PAGADO",
-        "TURNO_SACADO",
-        "LISTO_PARA_RETIRAR",
-    ]

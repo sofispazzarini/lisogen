@@ -14,7 +14,6 @@ from app.domain.enums import (
     EstadoEstudio,
     EstadoLote,
     EstadoMuestra,
-    MotivoReextraccion,
     RolUsuario,
     ServicioExterno,
 )
@@ -217,12 +216,13 @@ async def test_recolectar_en_orden_y_seguir_muestra(
 # --- E25 Confirmar llegada --------------------------------------------------------------------
 
 
-async def test_llegada_con_muestra_insuficiente_y_lote_abierto(
+async def test_llegada_con_muestra_de_poco_volumen_entra_al_lote(
     cliente: httpx.AsyncClient,
     session: AsyncSession,
     adaptadores: Adaptadores,
     demo: dict[RolUsuario, Usuario],
 ) -> None:
+    """SUPUESTO S42: la Muestra de < 2 ml no hace volver al Estudio; entra al Lote con un aviso."""
     transportista, admin = demo[RolUsuario.TRANSPORTISTA], demo[RolUsuario.ADMINISTRATIVO]
     buena = await _lista(session, demo, "Palermo", volumen="4")
     poca = await _lista(session, demo, "Palermo", volumen="1.5")
@@ -231,27 +231,30 @@ async def test_llegada_con_muestra_insuficiente_y_lote_abierto(
 
     llegada = await ok(await cliente.post("/transportista/llegada", headers=headers(transportista)))
     assert llegada["recibidas"] == 2
-    assert llegada["volumen_insuficiente"] == [poca.codigo]
+    assert llegada["volumen_bajo"] == [poca.codigo]
     assert llegada["lotes_sellados"] == [] and llegada["lote_en_formacion"] is not None
 
     assert await flujos.estado(cliente, admin, buena.id) == "EN_LAB_CENTRAL"
-    assert await flujos.estado(cliente, admin, poca.id) == "PAGADO"  # nueva extracción sin costo
+    assert await flujos.estado(cliente, admin, poca.id) == "EN_LAB_CENTRAL"
     m = await session.scalar(select(Muestra).where(Muestra.estudio_id == poca.id))
-    assert m is not None and m.estado == EstadoMuestra.VOLUMEN_INSUFICIENTE and m.lote_id is None
-    sol = await session.scalar(
-        select(SolicitudReextraccion).where(SolicitudReextraccion.estudio_id == poca.id)
-    )
+    assert m is not None
+    await session.refresh(m)
+    assert m.estado == EstadoMuestra.EN_LOTE and m.lote_id is not None
     assert (
-        sol is not None
-        and sol.motivo == MotivoReextraccion.VOLUMEN_INSUFICIENTE
-        and sol.solicitado_por is None
+        await session.scalar(select(SolicitudReextraccion).where(SolicitudReextraccion.estudio_id == poca.id))
+        is None
     )
-    aviso = await session.scalar(
-        select(Notificacion).where(
-            Notificacion.estudio_id == poca.id, Notificacion.cuerpo.contains("1.50 ml")
+    # El Administrativo ve el aviso en el detalle del Estudio y al buscar la Muestra por Paciente
+    detalle = await ok(await cliente.get(f"/administrativo/estudios/{poca.id}", headers=headers(admin)))
+    assert detalle["muestra"]["volumen_bajo"] is True and detalle["muestra"]["volumen_ml"] == "1.50"
+    detalle = await ok(await cliente.get(f"/administrativo/estudios/{buena.id}", headers=headers(admin)))
+    assert detalle["muestra"]["volumen_bajo"] is False
+    muestras = await ok(
+        await cliente.post(
+            "/administrativo/muestras/buscar", json={"texto": poca.codigo}, headers=headers(admin)
         )
     )
-    assert aviso is not None
+    assert [(x["estudio_codigo"], x["volumen_bajo"]) for x in muestras] == [(poca.codigo, True)]
 
     r = await cliente.post("/transportista/llegada", headers=headers(transportista))
     assert r.status_code == 409 and r.json()["code"] == "LLEGADA_CONFIRMADA"

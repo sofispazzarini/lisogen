@@ -1,7 +1,7 @@
 """La migración inicial reproduce schema.sql 1:1; la 0002 aplica sólo el cambio documentado (D1), la
 0003 agrega las columnas de la solicitud de Obra Social (DECISIONES S37), la 0004 las del familiograma
-(D2) y la 0005 el id del retiro de FedEx (D3). Cada test sube a head y baja hasta su revisión, así no
-depende del orden en que corren."""
+(D2), la 0005 el id del retiro de FedEx (D3) y la 0006 el número de familia y la mala calidad (D4).
+Cada test sube a head y baja hasta su revisión, así no depende del orden en que corren."""
 
 import os
 import re
@@ -103,6 +103,7 @@ def test_migracion_0005_fedex_retiro_ida_y_vuelta(bases: tuple[str, str]) -> Non
         "WHERE table_name='lote' AND column_name='fedex_retiro_id'"
     )
     command.upgrade(cfg, "head")
+    command.downgrade(cfg, "0005_lote_fedex_retiro")
     assert _scalar(mig, "SELECT version_num FROM alembic_version") == "0005_lote_fedex_retiro"
     assert _scalar(mig, columna) == 1
     command.downgrade(cfg, "0004_familiograma_api")
@@ -154,6 +155,49 @@ def test_migracion_0004_familiograma_ida_y_vuelta(bases: tuple[str, str]) -> Non
     assert _scalar(mig, "SELECT count(*) FROM pg_type WHERE typname='lado_familiar'") == 0
     command.upgrade(cfg, "0004_familiograma_api")
     assert _columnas_familiograma(mig) == 3
+
+
+def test_migracion_0006_familia_y_mala_calidad_ida_y_vuelta(bases: tuple[str, str]) -> None:
+    _, mig = bases
+    cfg = alembic_config(mig)
+    command.upgrade(cfg, "head")
+    command.downgrade(cfg, "0005_lote_fedex_retiro")
+    with psycopg.connect(url_libpq(mig), autocommit=True) as c:  # un Paciente previo a la migración
+        c.execute(
+            "INSERT INTO usuario (email, password_hash, rol, nombre, apellido, telefono) "
+            "VALUES ('m@test.com.ar', 'x', 'MEDICO_TRATANTE', 'M', 'T', '111111')"
+        )
+        c.execute("INSERT INTO profesional_medico (usuario_id, matricula) SELECT id, 'MP1' FROM usuario")
+        c.execute(
+            "INSERT INTO paciente (dni, nombre, apellido, fecha_nacimiento, telefono, email_contacto, "
+            "es_menor_al_alta, resumen_historia_clinica, medico_alta_id) "
+            "SELECT '30111222', 'A', 'B', '1990-01-01', '111111', 'a@test.com.ar', false, 'r', id "
+            "FROM usuario"
+        )
+    command.upgrade(cfg, "head")
+    assert _scalar(mig, "SELECT version_num FROM alembic_version") == "0006_familia_y_mala_calidad"
+    assert _scalar(mig, "SELECT familia_codigo FROM paciente") == "FAM-000001"
+    with psycopg.connect(url_libpq(mig), autocommit=True) as c:  # los nuevos reciben el siguiente número
+        c.execute(
+            "INSERT INTO paciente (dni, nombre, apellido, fecha_nacimiento, telefono, email_contacto, "
+            "es_menor_al_alta, resumen_historia_clinica, medico_alta_id) "
+            "SELECT '30111333', 'C', 'D', '1990-01-01', '111111', 'c@test.com.ar', false, 'r', id "
+            "FROM usuario"
+        )
+    assert _scalar(mig, "SELECT max(familia_codigo) FROM paciente") == "FAM-000002"
+    assert _scalar(mig, "SELECT 'MALA_CALIDAD' = ANY(enum_range(NULL::motivo_reextraccion)::text[])") is True
+
+    command.downgrade(cfg, "0005_lote_fedex_retiro")
+    assert (
+        _scalar(mig, "SELECT count(*) FROM information_schema.columns WHERE column_name='familia_codigo'")
+        == 0
+    )
+    assert _scalar(mig, "SELECT 'MALA_CALIDAD' = ANY(enum_range(NULL::estado_muestra)::text[])") is False
+    command.upgrade(cfg, "head")
+    with psycopg.connect(url_libpq(mig), autocommit=True) as c:
+        c.execute("DELETE FROM paciente")
+        c.execute("DELETE FROM profesional_medico")
+        c.execute("DELETE FROM usuario")
 
 
 def test_schema_tiene_todas_las_tablas_del_contrato(bases: tuple[str, str]) -> None:

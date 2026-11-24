@@ -96,3 +96,12 @@ describe('FormFamiliares', () => {
     expect(w.text()).not.toContain('Lado')
   })
 })
+
+describe('Reextraccion', () => {
+  it('ofrece los dos motivos con un detalle opcional', async () => {
+    const { default: Reextraccion } = await import('@/components/Reextraccion.vue')
+    const w = mount(Reextraccion, { props: { estudioId: 7, codigo: 'EST-2026-000007' } })
+    expect(w.findAll('button').map((b) => b.text())).toEqual(['Mala calidad', 'ADN desnaturalizado'])
+    expect(w.find('input').attributes('aria-label')).toBe('Detalle para EST-2026-000007')
+  })
+})

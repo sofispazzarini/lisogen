@@ -210,6 +210,8 @@ VOLUMEN_MINIMO_ML: Final = Decimal("2")
 
 
 def volumen_suficiente(volumen_ml: Decimal) -> bool:
+    """Volumen recomendado (2 ml). Por debajo la Muestra sigue su curso igual (SUPUESTO S42): sólo se
+    avisa al Administrativo, que pide una nueva extracción si llega con mala calidad a Corea."""
     return volumen_ml >= VOLUMEN_MINIMO_ML
 
 

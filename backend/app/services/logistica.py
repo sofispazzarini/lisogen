@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import get_settings
 from app.domain.enums import EstadoEstudio, EstadoMuestra, EstadoParada
 from app.domain.errores import Conflicto, ErrorNegocio, NoEncontrado
-from app.domain.reglas import TZ_AR, es_dia_habil
+from app.domain.reglas import TZ_AR, es_dia_habil, volumen_suficiente
 from app.integrations.ports import Parada, Punto
 from app.integrations.registro import Integraciones
 from app.models import (
@@ -283,6 +283,7 @@ async def buscar_muestras(session: AsyncSession, texto: str) -> list[MuestraSali
             paciente=p.nombre_completo,
             nro_extraccion=m.nro_extraccion,
             volumen_ml=m.volumen_ml,
+            volumen_bajo=not volumen_suficiente(m.volumen_ml),
             estado=m.estado,
             centro=centro,
             tomada_at=m.tomada_at,

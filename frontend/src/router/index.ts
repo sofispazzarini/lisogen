@@ -40,6 +40,7 @@ export const routes: RouteRecordRaw[] = [
     { path: 'pacientes', name: 'medico-pacientes', component: v('medico/Pacientes') },
     { path: 'pacientes/nuevo', name: 'medico-alta-paciente', component: v('medico/AltaPaciente') },
     { path: 'pacientes/:id(\\d+)', name: 'medico-ficha', component: v('medico/FichaPaciente'), props: true },
+    { path: 'familias/:codigo(FAM-\\d{6})', name: 'medico-familia', component: v('medico/HistorialFamilia'), props: true },
     { path: 'estudios/nuevo', name: 'medico-alta-estudio', component: v('medico/AltaEstudio') },
     { path: 'estudios/:id(\\d+)', name: 'medico-estudio', component: v('medico/DetalleEstudio'), props: true },
     { path: 'cupones', name: 'medico-cupones', component: v('medico/MisCupones') },

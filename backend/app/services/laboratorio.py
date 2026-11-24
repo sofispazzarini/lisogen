@@ -70,23 +70,43 @@ async def cargar_datos_crudos(
     return estudio
 
 
+_MOTIVOS_REEXTRACCION = {
+    MotivoReextraccion.DESNATURALIZADA: (
+        EstadoMuestra.DESNATURALIZADA,
+        "El ADN de la Muestra se desnaturalizó.",
+    ),
+    MotivoReextraccion.MALA_CALIDAD: (
+        EstadoMuestra.MALA_CALIDAD,
+        "La Muestra llegó con mala calidad al laboratorio de Corea.",
+    ),
+}
+
+
 async def solicitar_reextraccion(
-    session: AsyncSession, admin: Usuario, estudio_id: int, detalle: str | None
+    session: AsyncSession,
+    admin: Usuario,
+    estudio_id: int,
+    detalle: str | None,
+    motivo: MotivoReextraccion = MotivoReextraccion.DESNATURALIZADA,
 ) -> EstadoEstudio:
-    """E22 / SUPUESTO S10: ADN desnaturalizado. Mismo Estudio, sin costo; vuelve a Pagado o Autorizado para
-    sacar un nuevo Turno y se avisa al Paciente y al Médico Tratante. (Las de < 2 ml son automáticas, E25.)"""
+    """E22 / SUPUESTOS S10 y S42: ADN desnaturalizado o Muestra de mala calidad en Corea (por ejemplo, con
+    menos de 2 ml: ya no vuelve sola al llegar al Laboratorio Central). Mismo Estudio, sin costo; vuelve a
+    Pagado o Autorizado para sacar un nuevo Turno y se avisa al Paciente y al Médico Tratante."""
+    if motivo not in _MOTIVOS_REEXTRACCION:
+        raise ErrorNegocio("MOTIVO_INVALIDO", "El motivo de la nueva extracción no es válido.")
+    estado_muestra, texto = _MOTIVOS_REEXTRACCION[motivo]
     estudio = await obtener_estudio(session, estudio_id, para_actualizar=True)
     muestra = await _muestra_en_corea(session, estudio)
-    muestra.estado = EstadoMuestra.DESNATURALIZADA
+    muestra.estado = estado_muestra
     session.add(
         SolicitudReextraccion(
             estudio_id=estudio.id,
             muestra_id=muestra.id,
-            motivo=MotivoReextraccion.DESNATURALIZADA,
+            motivo=motivo,
             solicitado_por=admin.id,
         )
     )
-    motivo = "El ADN de la Muestra se desnaturalizó. Sacá un nuevo Turno: la extracción no tiene costo."
+    mensaje = f"{texto} Sacá un nuevo Turno: la extracción no tiene costo."
     if detalle:
-        motivo = f"{motivo} Detalle: {detalle}"
-    return await volver_a_habilitante(session, estudio, admin, motivo)
+        mensaje = f"{mensaje} Detalle: {detalle}"
+    return await volver_a_habilitante(session, estudio, admin, mensaje)
