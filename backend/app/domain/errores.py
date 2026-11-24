@@ -9,12 +9,18 @@ class ErrorNegocio(Exception):
     502 = falló un módulo externo."""
 
     def __init__(
-        self, code: str, message: str, status: Literal[401, 403, 404, 409, 422, 429, 502] = 422
+        self,
+        code: str,
+        message: str,
+        status: Literal[401, 403, 404, 409, 422, 429, 502] = 422,
+        *,
+        campos: list[str] | None = None,
     ) -> None:
         super().__init__(message)
         self.code = code
         self.message = message
         self.status = status
+        self.campos = campos or []
 
 
 class Conflicto(ErrorNegocio):

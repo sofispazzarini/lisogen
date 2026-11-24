@@ -1,5 +1,5 @@
 """La migración inicial reproduce schema.sql 1:1; la 0002 aplica sólo el cambio documentado (D1) y la 0003
-agrega las columnas de la solicitud de Obra Social (DECISIONES S37)."""
+agrega las columnas de la solicitud de Obra Social (DECISIONES S37) y la 0004 las del familiograma (D2)."""
 
 import os
 import re
@@ -104,13 +104,36 @@ def _columnas_os(nombre_db: str) -> object:
 def test_migracion_0003_solicitud_obra_social_ida_y_vuelta(bases: tuple[str, str]) -> None:
     _, mig = bases
     cfg = alembic_config(mig)
-    command.upgrade(cfg, "head")
+    command.upgrade(cfg, "0003_solicitud_obra_social")
     assert _scalar(mig, "SELECT version_num FROM alembic_version") == "0003_solicitud_obra_social"
     assert _columnas_os(mig) == 3
     command.downgrade(cfg, "0002_pago_anulable")
     assert _columnas_os(mig) == 0
-    command.upgrade(cfg, "head")
+    command.upgrade(cfg, "0003_solicitud_obra_social")
     assert _columnas_os(mig) == 3
+
+
+def _columnas_familiograma(nombre_db: str) -> object:
+    return _scalar(
+        nombre_db,
+        "SELECT count(*) FROM information_schema.columns WHERE (table_name='familiar' "
+        "AND column_name IN ('apellido', 'lado')) "
+        "OR (table_name='paciente' AND column_name='familiograma_advertencias')",
+    )
+
+
+def test_migracion_0004_familiograma_ida_y_vuelta(bases: tuple[str, str]) -> None:
+    _, mig = bases
+    cfg = alembic_config(mig)
+    command.upgrade(cfg, "head")
+    assert _scalar(mig, "SELECT version_num FROM alembic_version") == "0004_familiograma_api"
+    assert _columnas_familiograma(mig) == 3
+    assert _scalar(mig, "SELECT count(*) FROM pg_type WHERE typname='lado_familiar'") == 1
+    command.downgrade(cfg, "0003_solicitud_obra_social")
+    assert _columnas_familiograma(mig) == 0
+    assert _scalar(mig, "SELECT count(*) FROM pg_type WHERE typname='lado_familiar'") == 0
+    command.upgrade(cfg, "head")
+    assert _columnas_familiograma(mig) == 3
 
 
 def test_schema_tiene_todas_las_tablas_del_contrato(bases: tuple[str, str]) -> None:

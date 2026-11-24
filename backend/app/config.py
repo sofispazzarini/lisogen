@@ -41,6 +41,11 @@ class Settings(BaseSettings):
     snomed_api_url: str = "https://hwmpslajqivdqeaylhdc.supabase.co/functions/v1/terminologia/sintomas"
     snomed_api_key: str = ""
 
+    # Familiograma (API del Laboratorio): la clave va en .env, nunca en el repositorio
+    familiograma_modo: Literal["mock", "api"] = "mock"
+    familiograma_api_url: str = "https://cnylfdemauswqeqmvwmz.supabase.co/functions/v1/familiograma"
+    familiograma_api_key: str = ""
+
     # Chatbot (GenLab): la apikey y el token van en .env, nunca en el repositorio
     chatbot_modo: Literal["mock", "api"] = "mock"
     chatbot_url: str = "https://vglzngsrbyagquqqmakf.supabase.co/functions/v1/chat"

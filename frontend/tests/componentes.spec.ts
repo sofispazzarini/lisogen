@@ -77,3 +77,22 @@ describe('ResultadoVista', () => {
     expect(w.find('a').attributes('rel')).toBe('noopener')
   })
 })
+
+describe('FormFamiliares', () => {
+  it('pide apellido siempre y lado sólo para abuelos, tíos y primos', async () => {
+    const { default: FormFamiliares } = await import('@/components/FormFamiliares.vue')
+    const w = mount(FormFamiliares, { props: { patologias: [], modelValue: [] } })
+    await w.find('button.boton--chico:not(.boton--peligro)').trigger('click')
+    const nuevos = w.emitted('update:modelValue')!.at(-1)![0] as Esquemas['FamiliarEntrada'][]
+    expect(nuevos[0]).toMatchObject({ parentesco: 'MADRE', apellido: '', lado: null })
+
+    const abuela: Esquemas['FamiliarEntrada'] = { parentesco: 'ABUELA', nombre: 'Rosa', apellido: 'Paz', lado: 'MATERNO' }
+    await w.setProps({ modelValue: [abuela] })
+    expect(w.text()).toContain('Apellido')
+    expect(w.text()).toContain('Lado')
+
+    await w.find('select').setValue('MADRE')
+    expect(abuela.lado).toBeNull()
+    expect(w.text()).not.toContain('Lado')
+  })
+})

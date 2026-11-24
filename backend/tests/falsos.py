@@ -3,14 +3,19 @@
 from datetime import date
 from decimal import Decimal
 
-from app.integrations.mock import ChatbotMock, CuponesMock, ObrasSocialesMock
+from app.integrations.mock import ChatbotMock, CuponesMock, FamiliogramaMock, ObrasSocialesMock
 from app.integrations.ports import (
     ConceptoSnomed,
     CuponExterno,
+    DetalleError,
     ErrorChatbot,
     ErrorCupones,
+    ErrorFamiliograma,
     ErrorObraSocial,
     ErrorSnomed,
+    Familiograma,
+    PersonaFamiliograma,
+    ReglaSospecha,
     RespuestaChat,
     SolicitudExterna,
 )
@@ -126,3 +131,57 @@ class SnomedFalla:
 
     async def buscar(self, *, texto: str, limite: int = 20) -> list[ConceptoSnomed]:
         raise self._error
+
+
+class FamiliogramaFalla(FamiliogramaMock):
+    """Familiograma que responde `error`; guarda las personas recibidas para revisar el árbol enviado."""
+
+    def __init__(self, error: ErrorFamiliograma) -> None:
+        self.error = error
+        self.recibidas: list[PersonaFamiliograma] = []
+
+    async def generar(
+        self, *, personas: list[PersonaFamiliograma], regla_sospecha: ReglaSospecha = "desactivada"
+    ) -> Familiograma:
+        self.recibidas = personas
+        raise self.error
+
+
+class FamiliogramaConReglas(FamiliogramaMock):
+    """Imita las reglas de vínculos de la API real: el tío/a paterno/a (6) necesita un abuelo/a paterno/a
+    (4), el primo/a paterno/a (8) un tío/a paterno/a (6), y no puede haber más de dos progenitores (1)."""
+
+    def __init__(self) -> None:
+        self.pedidos: list[list[int]] = []
+
+    async def generar(
+        self, *, personas: list[PersonaFamiliograma], regla_sospecha: ReglaSospecha = "desactivada"
+    ) -> Familiograma:
+        codigos = [p.parentesco for p in personas]
+        self.pedidos.append(codigos)
+        if codigos.count(1) > 2:
+            i = [k for k, c in enumerate(codigos) if c == 1][2]
+            raise _rechazo(i, "MAS_DE_DOS_PROGENITORES: hay más de dos progenitores.")
+        detalles = [
+            DetalleError(f"personas.{i}.parentesco", f"FALTA_PERSONA_DE_REFERENCIA: {falta}")
+            for i, c in enumerate(codigos)
+            for necesita, falta in (
+                (6, "necesita un abuelo/a paterno/a."),
+                (8, "necesita un tío/a paterno/a."),
+            )
+            if c == necesita and (necesita - 2) not in codigos
+        ]
+        if detalles:
+            raise ErrorFamiliograma(
+                "HTTP 422", status=422, codigo="ENTRADA_INVALIDA", detalles=tuple(detalles)
+            )
+        return await super().generar(personas=personas, regla_sospecha=regla_sospecha)
+
+
+def _rechazo(i: int, mensaje: str) -> ErrorFamiliograma:
+    return ErrorFamiliograma(
+        "HTTP 422",
+        status=422,
+        codigo="ENTRADA_INVALIDA",
+        detalles=(DetalleError(f"personas.{i}.parentesco", mensaje),),
+    )
