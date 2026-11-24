@@ -106,6 +106,15 @@ class ErrorCupones(Exception):
         self.incierto = incierto
 
 
+EstadoRetiroFedex = Literal["PROGRAMADO", "RETIRADO"]
+
+
+@dataclass(frozen=True)
+class RetiroFedex:
+    id: str
+    url_seguimiento: str
+
+
 @dataclass(frozen=True)
 class Punto:
     latitud: Decimal
@@ -213,7 +222,9 @@ class CuponesPort(Protocol):
 
 
 class FedexPort(Protocol):
-    async def programar_retiro(self, *, fecha_hora: datetime, url_lote: str) -> str: ...
+    async def programar_retiro(self, *, fecha_hora: datetime, lugar: str) -> RetiroFedex: ...
+
+    async def consultar_retiro(self, *, retiro_id: str) -> EstadoRetiroFedex: ...
 
 
 class MinisterioSaludPort(Protocol):

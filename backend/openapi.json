@@ -1486,6 +1486,17 @@
             ],
             "title": "Retiro Programado At"
           },
+          "seguimiento_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Seguimiento Url"
+          },
           "sellado_at": {
             "anyOf": [
               {
@@ -1509,6 +1520,7 @@
           "sellado_at",
           "retiro_programado_at",
           "fedex_confirmado_at",
+          "seguimiento_url",
           "csv_url",
           "autorizacion_url"
         ],

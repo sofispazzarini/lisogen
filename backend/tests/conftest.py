@@ -38,6 +38,7 @@ def pytest_configure(config: pytest.Config) -> None:
         "CHATBOT_MODO",
         "OBRAS_SOCIALES_MODO",
         "FAMILIOGRAMA_MODO",
+        "FEDEX_MODO",
     ):
         os.environ[modo] = "mock"
     os.environ["SNOMED_MODO"] = "cache"

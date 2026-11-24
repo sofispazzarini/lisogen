@@ -41,6 +41,7 @@ class Lote(Base):
     autorizacion_ministerio_id: Mapped[int | None] = mapped_column(ForeignKey("archivo.id"))
     sellado_at: Mapped[datetime | None]
     retiro_programado_at: Mapped[datetime | None]
+    fedex_retiro_id: Mapped[str | None]
     fedex_url: Mapped[str | None]
     fedex_confirmado_at: Mapped[datetime | None]
     recibido_at: Mapped[datetime | None]

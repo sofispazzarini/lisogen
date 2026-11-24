@@ -20,6 +20,7 @@ from app.integrations.pdf import generar_pdf
 from app.integrations.ports import (
     ConceptoSnomed,
     CuponExterno,
+    EstadoRetiroFedex,
     Familiograma,
     Parada,
     ParentescoCatalogo,
@@ -27,6 +28,7 @@ from app.integrations.ports import (
     Punto,
     ReglaSospecha,
     RespuestaChat,
+    RetiroFedex,
     SolicitudExterna,
     VarianteExterna,
 )
@@ -212,8 +214,12 @@ class CuponesMock:
 
 
 class FedexMock:
-    async def programar_retiro(self, *, fecha_hora: datetime, url_lote: str) -> str:
-        return f"FDX{_h(f'{fecha_hora.isoformat()}|{url_lote}') % 10**12:012d}"
+    async def programar_retiro(self, *, fecha_hora: datetime, lugar: str) -> RetiroFedex:
+        id_retiro = str(uuid.uuid5(uuid.NAMESPACE_URL, f"{fecha_hora.isoformat()}|{lugar}"))
+        return RetiroFedex(id=id_retiro, url_seguimiento=f"https://fedex.invalid/retiros/{id_retiro}")
+
+    async def consultar_retiro(self, *, retiro_id: str) -> EstadoRetiroFedex:
+        return "PROGRAMADO"  # en modo mock la confirmación la hace la tarea `fedex` por hora
 
 
 class MinisterioSaludMock:

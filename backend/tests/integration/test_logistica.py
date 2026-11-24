@@ -1,6 +1,6 @@
 """E23 Orden del Día, E24 Recolectar, E19 Seguir Muestra, E25 Confirmar llegada (Lotes) y E20 FedEx."""
 
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 
 import httpx
@@ -18,6 +18,9 @@ from app.domain.enums import (
     RolUsuario,
     ServicioExterno,
 )
+from app.domain.errores import ErrorNegocio
+from app.integrations import mock
+from app.integrations.ports import RetiroFedex
 from app.integrations.registro import Adaptadores, Integraciones
 from app.models import (
     Archivo,
@@ -361,7 +364,9 @@ async def test_programar_retiro_y_webhook_de_fedex(
     lote_db = await session.get(Lote, lote_id)
     assert lote_db is not None
     await session.refresh(lote_db)
-    assert lote_db.fedex_url == f"{get_settings().api_public_url}/integraciones/fedex/lotes/{lote_id}/{token}"
+    assert lote_db.fedex_retiro_id is not None
+    assert lote_db.fedex_url == lote["seguimiento_url"] and lote_db.fedex_retiro_id in lote_db.fedex_url
+    assert log.request["lugar"] == get_settings().fedex_lugar_retiro
 
     r = await cliente.post(f"/integraciones/fedex/lotes/{lote_id}/token-falso")
     assert r.status_code == 404
@@ -374,6 +379,56 @@ async def test_programar_retiro_y_webhook_de_fedex(
     assert m is not None and m.estado == EstadoMuestra.EN_VIAJE_COREA
     ubic = await ok(await cliente.get(f"/administrativo/muestras/{m.id}/ubicacion", headers=headers(admin)))
     assert "Corea" in ubic["descripcion"]
+
+
+async def test_no_se_reprograma_un_retiro(
+    cliente: httpx.AsyncClient,
+    session: AsyncSession,
+    adaptadores: Adaptadores,
+    demo: dict[RolUsuario, Usuario],
+) -> None:
+    admin = demo[RolUsuario.ADMINISTRATIVO]
+    lote_id, _ = await _lote_sellado(cliente, session, adaptadores, demo)
+    dia = await flujos.proximo_dia_habil(session)
+    url = f"/administrativo/lotes/{lote_id}/retiro"
+    primero = await ok(
+        await cliente.post(url, json={"fecha_hora": flujos.slot(dia, 11)}, headers=headers(admin))
+    )
+
+    r = await cliente.post(url, json={"fecha_hora": flujos.slot(dia, 12)}, headers=headers(admin))
+
+    assert r.status_code == 409 and r.json()["code"] == "RETIRO_YA_PROGRAMADO"
+    lote = await session.get(Lote, lote_id)
+    assert lote is not None and lote.fedex_url == primero["seguimiento_url"]
+    llamadas = await session.scalar(
+        select(func.count()).where(IntegracionLog.servicio == ServicioExterno.FEDEX)
+    )
+    assert llamadas == 1
+
+
+async def test_si_fedex_falla_el_lote_queda_sin_programar(
+    cliente: httpx.AsyncClient,
+    session: AsyncSession,
+    adaptadores: Adaptadores,
+    demo: dict[RolUsuario, Usuario],
+) -> None:
+    class FedexCaido(mock.FedexMock):
+        async def programar_retiro(self, *, fecha_hora: datetime, lugar: str) -> RetiroFedex:
+            raise ErrorNegocio("FEDEX_NO_DISPONIBLE", "No pudimos comunicarnos con FedEx.", 502)
+
+    lote_id, _ = await _lote_sellado(cliente, session, adaptadores, demo)
+    adaptadores.fedex = FedexCaido()
+    dia = await flujos.proximo_dia_habil(session)
+
+    r = await cliente.post(
+        f"/administrativo/lotes/{lote_id}/retiro",
+        json={"fecha_hora": flujos.slot(dia, 11)},
+        headers=headers(demo[RolUsuario.ADMINISTRATIVO]),
+    )
+
+    assert r.status_code == 502 and r.json()["code"] == "FEDEX_NO_DISPONIBLE"
+    lote = await session.get(Lote, lote_id)
+    assert lote is not None and lote.retiro_programado_at is None and lote.fedex_retiro_id is None
 
 
 async def test_no_se_programa_retiro_de_lote_sin_sellar(

@@ -1740,6 +1740,8 @@ export interface components {
             incluye_urgente: boolean;
             /** Retiro Programado At */
             retiro_programado_at: string | null;
+            /** Seguimiento Url */
+            seguimiento_url: string | null;
             /** Sellado At */
             sellado_at: string | null;
         };

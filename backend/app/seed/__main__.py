@@ -11,9 +11,15 @@ from app.seed.estudios import cargar_estudios
 
 
 async def main() -> None:
-    # El seed arma Presupuestos, Autorizaciones y Cupones de ejemplo: no debe crear nada en las APIs reales.
+    # El seed arma Presupuestos, Autorizaciones, Cupones y retiros de FedEx de ejemplo:
+    # no debe crear nada en las APIs reales.
     settings = get_settings().model_copy(
-        update={"apigen_modo": "mock", "cupones_modo": "mock", "obras_sociales_modo": "mock"}
+        update={
+            "apigen_modo": "mock",
+            "cupones_modo": "mock",
+            "obras_sociales_modo": "mock",
+            "fedex_modo": "mock",
+        }
     )
     async with get_sessionmaker()() as session, session.begin():
         await vaciar(session)
