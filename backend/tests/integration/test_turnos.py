@@ -23,6 +23,7 @@ from app.models import (
     Turno,
     Usuario,
 )
+from app.services.comun import ahora
 from app.services.extracciones import registrar_extraccion
 from app.services.turnos import registrar_inasistencia
 from tests import factories, flujos
@@ -78,7 +79,8 @@ async def test_centros_y_agenda(
         await cliente.get(f"/paciente/centros/{cid}/agenda", params={"fecha": sabado.isoformat()}, headers=h)
     )
     assert not agenda["habil"] and agenda["slots"] == []
-    ayer = (date.today() - timedelta(days=1)).isoformat()
+    # "Ayer" según la hora de Argentina, como la agenda (en UTC, entre las 21 y las 24 ya es otro día)
+    ayer = (ahora().astimezone(TZ_AR).date() - timedelta(days=1)).isoformat()
     assert (
         await ok(await cliente.get(f"/paciente/centros/{cid}/agenda", params={"fecha": ayer}, headers=h))
     )["slots"] == []
