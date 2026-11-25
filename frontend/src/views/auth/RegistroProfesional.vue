@@ -48,7 +48,8 @@ async function enviar(): Promise<void> {
 </script>
 
 <template>
-  <PantallaAuth titulo="Registro de profesionales" subtitulo="E1, E15, E26 y E29: todos los datos son obligatorios.">
+  <PantallaAuth titulo="Ingresá a LisoGen" pestanas>
+    <p class="nota">Para Médicos Tratantes, Administrativos, Bioinformáticos y Gerentes Médicos (E1, E15, E26 y E29). Todos los datos son obligatorios.</p>
     <form class="formulario" @submit.prevent="enviar">
       <label class="campo">
         <span>Rol</span>
@@ -78,9 +79,8 @@ async function enviar(): Promise<void> {
       </template>
       <Alerta v-if="error" tipo="error">{{ error }}</Alerta>
       <Alerta v-if="exito" tipo="exito">{{ exito }}</Alerta>
-      <button class="boton boton--primario" type="submit" :disabled="enCurso">Registrarme</button>
+      <button class="boton boton--primario ancho" type="submit" :disabled="enCurso">Crear cuenta</button>
     </form>
-    <RouterLink to="/ingresar">Ya tengo cuenta</RouterLink>
   </PantallaAuth>
 </template>
 
@@ -88,4 +88,6 @@ async function enviar(): Promise<void> {
 .especialidades { border: 1px solid var(--color-borde); border-radius: var(--radio-chico); padding: 10px; display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 6px; }
 .especialidades legend { font-weight: 600; font-size: 0.9rem; padding: 0 4px; }
 .opcion { display: flex; gap: 6px; align-items: center; }
+.ancho { width: 100%; }
+.nota { margin: 0; font-size: 13.5px; color: var(--color-texto-suave); }
 </style>

@@ -22,11 +22,11 @@ async function enviar(): Promise<void> {
 </script>
 
 <template>
-  <PantallaAuth titulo="Ingresar" subtitulo="Usá el mail y la contraseña de tu cuenta.">
+  <PantallaAuth titulo="Ingresá a LisoGen" pestanas>
     <Alerta v-if="route.query.vencida" tipo="info">Tu sesión venció. Ingresá de nuevo.</Alerta>
     <form class="formulario" @submit.prevent="enviar">
       <label class="campo">
-        <span>Mail</span>
+        <span>Correo electrónico</span>
         <input v-model="email" type="email" autocomplete="username" required />
       </label>
       <label class="campo">
@@ -34,12 +34,13 @@ async function enviar(): Promise<void> {
         <input v-model="password" type="password" autocomplete="current-password" required />
       </label>
       <Alerta v-if="error" tipo="error">{{ error }}</Alerta>
-      <button class="boton boton--primario" type="submit" :disabled="enCurso">{{ enCurso ? 'Ingresando…' : 'Ingresar' }}</button>
+      <button class="boton boton--primario ancho" type="submit" :disabled="enCurso">{{ enCurso ? 'Ingresando…' : 'Ingresar' }}</button>
     </form>
-    <p class="suave">
-      ¿Sos Médico Tratante, Administrativo, Bioinformático o Gerente Médico y no tenés cuenta?
-      <RouterLink to="/registro">Registrate</RouterLink>.
-    </p>
-    <p class="suave">Los Pacientes reciben sus credenciales por mail cuando su Médico Tratante los da de alta.</p>
+    <p class="nota">Los Pacientes reciben sus credenciales por mail cuando su Médico Tratante los da de alta.</p>
   </PantallaAuth>
 </template>
+
+<style scoped>
+.ancho { width: 100%; }
+.nota { margin: 0; font-size: 13.5px; color: var(--color-texto-suave); }
+</style>

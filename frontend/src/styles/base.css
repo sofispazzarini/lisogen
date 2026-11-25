@@ -14,6 +14,11 @@
   --color-primario-suave: #ddeeeb;
   --color-sobre-primario: #ffffff;
   --color-acento: #2e6b3f; /* "hecho" */
+  /* Home público */
+  --color-primario-profundo: #0b5956; /* fondo del hero */
+  --color-banda: #e3edea;
+  --color-pizarra: #4e5b5f;
+  --color-niebla: #eef2ef;
 
   --tono-neutro-fondo: #eceee9;
   --tono-neutro-texto: #3e4d51;
@@ -57,6 +62,10 @@
     --color-primario-suave: #163735;
     --color-sobre-primario: #0b1f21;
     --color-acento: #7cc48f;
+    --color-primario-profundo: #0b3d3b;
+    --color-banda: #13292a;
+    --color-pizarra: #2a3a3e;
+    --color-niebla: #1b282b;
 
     --tono-neutro-fondo: #233235;
     --tono-neutro-texto: #c5d3d1;

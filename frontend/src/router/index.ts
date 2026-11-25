@@ -1,4 +1,5 @@
 import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
+import LayoutPublico from '@/layouts/LayoutPublico.vue'
 import LayoutRol from '@/layouts/LayoutRol.vue'
 import { INICIO_POR_ROL, useAuthStore, type Rol } from '@/stores/auth'
 
@@ -25,12 +26,19 @@ function seccion(path: string, rol: Rol, hijos: RouteRecordRaw[]): RouteRecordRa
 }
 
 export const routes: RouteRecordRaw[] = [
-  { path: '/', redirect: '/ingresar' },
-  // E7 y E1/E15/E26/E29
-  { path: '/ingresar', name: 'ingresar', component: v('auth/Login'), meta: { publica: true } },
-  { path: '/verificar', name: 'verificar', component: v('auth/Verificacion'), meta: { publica: true } },
-  { path: '/cambiar-password', name: 'cambiar-password', component: v('auth/CambioPassword'), meta: { publica: true } },
-  { path: '/registro', name: 'registro', component: v('auth/RegistroProfesional'), meta: { publica: true } },
+  // Home y acceso, con el armazón público (cabecera con anclas y pie). E7 y E1/E15/E26/E29.
+  {
+    path: '/',
+    component: LayoutPublico,
+    meta: { publica: true },
+    children: [
+      { path: '', name: 'inicio', component: v('publico/Inicio'), meta: { publica: true } },
+      { path: 'ingresar', name: 'ingresar', component: v('auth/Login'), meta: { publica: true } },
+      { path: 'verificar', name: 'verificar', component: v('auth/Verificacion'), meta: { publica: true } },
+      { path: 'cambiar-password', name: 'cambiar-password', component: v('auth/CambioPassword'), meta: { publica: true } },
+      { path: 'registro', name: 'registro', component: v('auth/RegistroProfesional'), meta: { publica: true } },
+    ],
+  },
   {
     path: '/cuenta',
     component: LayoutRol,
@@ -91,7 +99,16 @@ export const routes: RouteRecordRaw[] = [
   { path: '/:pathMatch(.*)*', redirect: '/' },
 ]
 
-export const router = createRouter({ history: createWebHistory(), routes, scrollBehavior: () => ({ top: 0 }) })
+/** Con hash (#sede, #preguntas…), baja a esa sección del home dejando lugar para la cabecera fija. */
+function scrollBehavior(to: { hash: string }) {
+  if (to.hash) {
+    const reducido = typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+    return { el: to.hash, top: 84, behavior: reducido ? ('auto' as const) : ('smooth' as const) }
+  }
+  return { top: 0 }
+}
+
+export const router = createRouter({ history: createWebHistory(), routes, scrollBehavior })
 
 /** Guarda: rutas privadas requieren sesión; cada sección, su rol. */
 router.beforeEach(async (to) => {
