@@ -7,13 +7,12 @@
 <style scoped>
 .urgente {
   display: inline-block;
-  padding: 2px 8px;
+  padding: 2px 9px;
   border-radius: 999px;
-  background: var(--color-urgente);
-  color: #fff;
-  font-size: 0.75rem;
-  font-weight: 700;
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
+  background: var(--color-urgente-suave);
+  color: var(--color-urgente);
+  font-size: 12px;
+  font-weight: 600;
+  vertical-align: middle;
 }
 </style>

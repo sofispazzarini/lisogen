@@ -41,6 +41,20 @@ describe('guardas por rol', () => {
     expect(router.currentRoute.value.path).toBe('/transportista')
   })
 
+  it('el home es público y no redirige, con o sin sesión', async () => {
+    await router.push('/')
+    expect(router.currentRoute.value.name).toBe('inicio')
+    conRol('MEDICO_TRATANTE')
+    await router.push('/medico')
+    await router.push('/')
+    expect(router.currentRoute.value.name).toBe('inicio')
+  })
+
+  it('una ruta desconocida lleva al home', async () => {
+    await router.push('/no-existe')
+    expect(router.currentRoute.value.name).toBe('inicio')
+  })
+
   it('el registro de profesionales es público', async () => {
     await router.push('/registro')
     expect(router.currentRoute.value.name).toBe('registro')

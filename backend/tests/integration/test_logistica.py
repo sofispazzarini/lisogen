@@ -1,6 +1,6 @@
 """E23 Orden del Día, E24 Recolectar, E19 Seguir Muestra, E25 Confirmar llegada (Lotes) y E20 FedEx."""
 
-from datetime import date, datetime, timedelta
+from datetime import datetime, timedelta
 from decimal import Decimal
 
 import httpx
@@ -18,6 +18,7 @@ from app.domain.enums import (
     ServicioExterno,
 )
 from app.domain.errores import ErrorNegocio
+from app.domain.reglas import TZ_AR
 from app.integrations import mock
 from app.integrations.ports import RetiroFedex
 from app.integrations.registro import Adaptadores, Integraciones
@@ -37,6 +38,7 @@ from app.models import (
     Usuario,
 )
 from app.services import logistica
+from app.services.comun import ahora
 from tests import factories, flujos
 from tests.factories import headers
 from tests.flujos import ok
@@ -136,7 +138,8 @@ async def test_sin_orden_en_feriado_ni_sin_muestras(
     assert await logistica.generar_ordenes_del_dia(session, ints, dia) == []  # E23 excepción
     sabado = dia + timedelta(days=(5 - dia.weekday()) % 7 or 7)
     assert await logistica.generar_ordenes_del_dia(session, ints, sabado) == []
-    otro = await flujos.proximo_dia_habil(session, (dia - date.today()).days + 1)
+    # Mismo "hoy" que proximo_dia_habil (hora de Argentina), no el de la máquina (UTC en el CI)
+    otro = await flujos.proximo_dia_habil(session, (dia - ahora().astimezone(TZ_AR).date()).days + 1)
     generadas = await logistica.generar_ordenes_del_dia(session, ints, otro)
     assert len(generadas) == 1
     assert await logistica.generar_ordenes_del_dia(session, ints, otro) == []  # no se regenera (S8)

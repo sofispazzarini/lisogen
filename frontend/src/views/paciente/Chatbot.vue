@@ -71,6 +71,6 @@ async function enviar(texto = pregunta.value): Promise<void> {
 .chat { display: grid; gap: 12px; }
 .conversacion { display: grid; gap: 8px; max-height: 55vh; overflow-y: auto; padding-right: 4px; }
 .burbuja { margin: 0; padding: 10px 14px; border-radius: 14px; max-width: 80%; white-space: pre-line; }
-.yo { justify-self: end; background: var(--color-primario); color: #fff; border-bottom-right-radius: 4px; }
+.yo { justify-self: end; background: var(--color-primario); color: var(--color-sobre-primario); border-bottom-right-radius: 4px; }
 .bot { justify-self: start; background: var(--color-superficie-2); border: 1px solid var(--color-borde); border-bottom-left-radius: 4px; }
 </style>

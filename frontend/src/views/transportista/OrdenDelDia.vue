@@ -109,7 +109,7 @@ onBeforeUnmount(() => vigilancia !== null && navigator.geolocation.clearWatch(vi
 .paradas { gap: 10px; }
 .parada { display: flex; gap: 12px; align-items: center; padding: 12px; }
 .parada.hecha { opacity: 0.6; }
-.numero { width: 34px; height: 34px; flex: none; border-radius: 50%; display: grid; place-items: center; background: var(--color-primario); color: #fff; font-weight: 700; }
+.numero { width: 34px; height: 34px; flex: none; border-radius: 50%; display: grid; place-items: center; background: var(--color-primario); color: var(--color-sobre-primario); font-weight: 700; }
 .hecha .numero { background: var(--color-acento); }
 .destino .numero { background: var(--color-acento); font-size: 1rem; }
 </style>
